@@ -8,15 +8,15 @@ import io.github.cdimascio.dotenv.Dotenv; // Importe a nova biblioteca
 public class DemoApplication {
 
     public static void main(String[] args) {
-        // Carrega as variáveis do arquivo .env
+    
         Dotenv dotenv = Dotenv.load();
 
-        // Configura as variáveis de sistema para o Spring Boot usar
+        
         System.setProperty("DB_URL", dotenv.get("DB_URL"));
         System.setProperty("DB_USER", dotenv.get("DB_USER"));
         System.setProperty("DB_PASS", dotenv.get("DB_PASS"));
+        System.setProperty("JWT_SECRET", dotenv.get("JWT_SECRET"));
 
-        // Inicia a aplicação Spring Boot
         SpringApplication.run(DemoApplication.class, args);
     }
 }
