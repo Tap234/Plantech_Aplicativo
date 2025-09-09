@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plantech-backend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plantech-backend
+  template:
+    metadata:
+      labels:
+        app: plantech-backend
+    spec:
+      containers:
+      - name: plantech-backend
+        image: plantech-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_URL
+          value: "jdbc:postgresql://<SEU_HOST>:<PORTA>/postgres" # Substitua com seus dados
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASS
+          value: "<SUA_SENHA_DO_BANCO>" # Substitua com seus dados
+        - name: JWT_SECRET
+          value: "c3VwZXItc2VjcmV0LWZvci1wbGFudGVjaC1hcHAtMjAyNS1sb25nLWFuZC1zdHJvbmc="
