@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.example.plantech.dto.PlantaRequestDTO;
 
 import com.example.plantech.entity.Planta;
 import com.example.plantech.entity.User;
@@ -33,16 +34,20 @@ public class PlantaController {
     private UserRepository userRepository;
 
     @PostMapping
-    public ResponseEntity<Planta> criarPlanta(@RequestBody Planta planta, Authentication authentication) {
+    public ResponseEntity<Planta> criarPlanta(@RequestBody PlantaRequestDTO plantaDTO, Authentication authentication) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String userEmail = userDetails.getUsername();
-        
+     
         User currentUser = userRepository.findByEmail(userEmail)
             .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
-        planta.setUser(currentUser);
-        Planta novaPlanta = plantaRepository.save(planta);
-        return ResponseEntity.status(HttpStatus.CREATED).body(novaPlanta);
+        Planta novaPlanta = new Planta();
+        novaPlanta.setNome(plantaDTO.getNome());
+        novaPlanta.setDescricao(plantaDTO.getDescricao());
+        novaPlanta.setUser(currentUser);
+     
+        Planta plantaSalva = plantaRepository.save(novaPlanta);
+        return ResponseEntity.status(HttpStatus.CREATED).body(plantaSalva);
     }
 
     @GetMapping

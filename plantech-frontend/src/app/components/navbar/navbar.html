@@ -1,0 +1,8 @@
+<nav>
+  <div class="nav-brand">Plantech</div>
+  <ul>
+    <li *ngIf="!isAdmin()"><a routerLink="/home" routerLinkActive="active">Minhas Plantas</a></li>
+    <li *ngIf="isAdmin()"><a routerLink="/admin" routerLinkActive="active">Admin</a></li>
+  </ul>
+  <button (click)="logout()">Sair</button>
+</nav>

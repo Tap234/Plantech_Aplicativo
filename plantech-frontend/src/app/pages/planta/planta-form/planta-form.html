@@ -1,0 +1,18 @@
+<div class="form-container">
+  <h2>{{ isEditMode ? 'Editar Planta' : 'Adicionar Nova Planta' }}</h2>
+  <form (ngSubmit)="onSubmit()">
+    <div class="form-group">
+      <label for="nome">Nome:</label>
+      <input type="text" id="nome" name="nome" [(ngModel)]="planta.nome" required>
+    </div>
+    <div class="form-group">
+      <label for="descricao">Descrição:</label>
+      <textarea id="descricao" name="descricao" [(ngModel)]="planta.descricao" required></textarea>
+    </div>
+    
+    <div class="button-group">
+      <button type="submit" class="btn-save">{{ isEditMode ? 'Atualizar' : 'Adicionar' }}</button>
+      <button type="button" class="btn-cancel" (click)="cancel()">Cancelar</button>
+    </div>
+  </form>
+</div>

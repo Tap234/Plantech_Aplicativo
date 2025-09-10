@@ -1,0 +1,38 @@
+<div class="container">
+  <h2>Painel Administrativo - Gestão de Usuários</h2>
+
+  <div *ngIf="users.length > 0; else noUsers">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nome</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of users">
+          <td>{{ user.id }}</td>
+          <td>{{ user.nome }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.role }}</td>
+          <td>
+            <button class="btn-promote" *ngIf="user.role === 'ROLE_USER'" (click)="promoteUser(user.id)">
+              Promover
+            </button>
+            <button class="btn-demote" *ngIf="user.role === 'ROLE_ADMIN' && user.email !== currentUserEmail" (click)="demoteUser(user.id)">
+              Revogar Admin
+            </button>
+            <button class="btn-delete" (click)="deleteUser(user.id)">Deletar</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #noUsers>
+    <p>Nenhum usuário encontrado.</p>
+  </ng-template>
+</div>

@@ -1,1 +1,31 @@
-<p>home works!</p>
+<div class="container">
+  <h1>Minhas Plantas</h1>
+
+  <div *ngIf="plantas.length > 0; else noPlants">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Descrição</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let planta of plantas">
+          <td>{{ planta.nome }}</td>
+          <td>{{ planta.descricao }}</td>
+          <td>
+            <button class="btn-edit" [routerLink]="['/plantas/editar', planta.id]">Editar</button>
+            <button class="btn-delete" (click)="deletarPlanta(planta.id)">Excluir</button>
+        </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #noPlants>
+    <p>Nenhuma planta cadastrada ainda. Que tal adicionar a primeira?</p>
+  </ng-template>
+
+  <button class="btn-add" routerLink="/plantas/novo">Adicionar Nova Planta</button>
+</div>

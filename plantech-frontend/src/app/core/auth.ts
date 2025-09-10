@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { jwtDecode } from 'jwt-decode';
 
 @Injectable({
   providedIn: 'root'
@@ -25,5 +26,20 @@ export class AuthService {
 
   logout(): void {
     localStorage.removeItem('authToken');
+  }
+
+  register(user: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/register`, user);
+  }
+
+  getCurrentUserEmail(): string | null {
+  const token = this.getToken();
+  if (!token) return null;
+  try {
+    const decodedToken: { sub: string } = jwtDecode(token);
+    return decodedToken.sub;
+  } catch (error) {
+    return null;
+  }
   }
 }

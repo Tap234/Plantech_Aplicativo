@@ -13,3 +13,5 @@
  .btn-edit { background-color: #ffc107; }
  .btn-delete { background-color: #dc3545; }
  .btn-add { background-color: #28a745; padding: 10px 15px; }
+ .btn-promote { background-color: #17a2b8;}
+ .btn-demote { background-color: #6c757d;}
