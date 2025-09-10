@@ -13,4 +13,17 @@ export class AuthService {
   login(credentials: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/login`, credentials);
   }
+
+  getToken(): string | null {
+    return localStorage.getItem('authToken');
+  }
+
+  isLoggedIn(): boolean {
+    const token = this.getToken();
+    return !!token;
+  }
+
+  logout(): void {
+    localStorage.removeItem('authToken');
+  }
 }

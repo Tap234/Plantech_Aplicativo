@@ -28,13 +28,13 @@ public class DataSeeder implements CommandLineRunner {
             User admin = new User();
             admin.setNome("Admin User");
             admin.setEmail("admin@email.com");
-            admin.setSenha(passwordEncoder.encode("senhaadmin"));
+            admin.setPassword(passwordEncoder.encode("senhaadmin"));
             admin.setRole(Role.ROLE_ADMIN);
 
             User user = new User();
             user.setNome("Common User");
             user.setEmail("user@email.com");
-            user.setSenha(passwordEncoder.encode("senha123"));
+            user.setPassword(passwordEncoder.encode("senha123"));
             user.setRole(Role.ROLE_USER);
             
             userRepository.saveAll(Arrays.asList(admin, user));

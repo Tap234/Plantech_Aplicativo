@@ -38,7 +38,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public User registerUser(@RequestBody User user) {
-        user.setSenha(passwordEncoder.encode(user.getSenha()));
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRole(Role.ROLE_USER);
         return userRepository.save(user);
     }
@@ -46,7 +46,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getSenha())
+                new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
         );
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();

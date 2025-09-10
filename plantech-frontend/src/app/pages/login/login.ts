@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-login',
@@ -11,20 +12,25 @@ import { AuthService } from '../../core/auth';
 })
 export class Login {
   loginData = {
-    username: '',
+    email: '',
     password: ''
   };
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService, private router: Router) {}
   
   onSubmit() {
-    console.log('Enviando para API:', this.loginData).subscribe({
-      next: (response) => {
-        console.log('Login bem-sucedido:', response);
-      },
-      error: (erro) => {
-        console.error('Erro no login:', erro);
-        alert('Falha no login. Verifique suas credenciais.');
-      }
-    });
-  }
+  this.authService.login(this.loginData).subscribe({
+    next: (response: any) => {
+      console.log('Login bem-sucedido!', response);
+      
+      localStorage.setItem('authToken', response.token); 
+
+      this.router.navigate(['/home']);
+      
+    },
+    error: (err: any) => {
+      console.error('Erro no login:', err);
+      alert('E-mail ou senha incorretos.');
+    }
+  });
+}
 }
