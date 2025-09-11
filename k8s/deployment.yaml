@@ -20,10 +20,19 @@ spec:
         - containerPort: 8080
         env:
         - name: DB_URL
-          value: "jdbc:postgresql://<SEU_HOST>:<PORTA>/postgres" # Substitua com seus dados
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: DB_URL
         - name: DB_USER
-          value: "postgres"
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: DB_USER
         - name: DB_PASS
-          value: "<SUA_SENHA_DO_BANCO>" # Substitua com seus dados
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: DB_PASS
         - name: JWT_SECRET
           value: "c3VwZXItc2VjcmV0LWZvci1wbGFudGVjaC1hcHAtMjAyNS1sb25nLWFuZC1zdHJvbmc="
