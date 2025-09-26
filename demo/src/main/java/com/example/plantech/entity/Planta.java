@@ -11,6 +11,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.CascadeType;
+
+import java.time.LocalDate;
+
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
 @Entity
@@ -21,6 +24,9 @@ public class Planta {
     private Long id;
     private String nome;
     private String descricao;
+    private Integer frequenciaRegaDias;
+    private LocalDate dataUltimaRega;
+    private String fotoUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -35,5 +41,27 @@ public class Planta {
     public void setDescricao(String descricao) { this.descricao = descricao; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+    public Integer getFrequenciaRegaDias() {
+        return frequenciaRegaDias;
+    }
 
+    public void setFrequenciaRegaDias(Integer frequenciaRegaDias) {
+        this.frequenciaRegaDias = frequenciaRegaDias;
+    }
+
+    public LocalDate getDataUltimaRega() {
+        return dataUltimaRega;
+    }
+
+    public void setDataUltimaRega(LocalDate dataUltimaRega) {
+        this.dataUltimaRega = dataUltimaRega;
+    }
+    
+    public String getFotoUrl() {
+        return fotoUrl;
+    }
+
+    public void setFotoUrl(String fotoUrl) {
+        this.fotoUrl = fotoUrl;
+    }
 }

@@ -17,6 +17,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.example.plantech.dto.PlantaRequestDTO;
+import java.time.LocalDate;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import com.example.plantech.service.FileStorageService;
 
 import com.example.plantech.entity.Planta;
 import com.example.plantech.entity.User;
@@ -32,6 +36,9 @@ public class PlantaController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private FileStorageService fileStorageService;
 
     @PostMapping
     public ResponseEntity<Planta> criarPlanta(@RequestBody PlantaRequestDTO plantaDTO, Authentication authentication) {
@@ -93,6 +100,9 @@ public class PlantaController {
 
         plantaExistente.setNome(plantaDetalhes.getNome());
         plantaExistente.setDescricao(plantaDetalhes.getDescricao());
+
+        plantaExistente.setFrequenciaRegaDias(plantaDetalhes.getFrequenciaRegaDias());
+        plantaExistente.setDataUltimaRega(plantaDetalhes.getDataUltimaRega());
         
         Planta plantaAtualizada = plantaRepository.save(plantaExistente);
         return ResponseEntity.ok(plantaAtualizada);
@@ -114,5 +124,45 @@ public class PlantaController {
 
         plantaRepository.delete(planta);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/regar")
+    public ResponseEntity<Planta> registrarRega(@PathVariable Long id, Authentication authentication) {
+        Optional<Planta> plantaOpt = plantaRepository.findById(id);
+        if (plantaOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Planta planta = plantaOpt.get();
+        String userEmail = ((UserDetails) authentication.getPrincipal()).getUsername();
+
+        if (!planta.getUser().getEmail().equals(userEmail)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        planta.setDataUltimaRega(LocalDate.now());
+        Planta plantaAtualizada = plantaRepository.save(planta);
+        return ResponseEntity.ok(plantaAtualizada);
+    }
+
+    @PostMapping("/{id}/foto")
+    public ResponseEntity<Planta> uploadFotoPlanta(@PathVariable Long id, @RequestParam("file") MultipartFile file, Authentication authentication) {
+        Optional<Planta> plantaOpt = plantaRepository.findById(id);
+        if (plantaOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Planta planta = plantaOpt.get();
+        String userEmail = ((UserDetails) authentication.getPrincipal()).getUsername();
+
+        if (!planta.getUser().getEmail().equals(userEmail)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        String filename = fileStorageService.save(file);
+        planta.setFotoUrl(filename);
+        Planta plantaAtualizada = plantaRepository.save(planta);
+
+        return ResponseEntity.ok(plantaAtualizada);
     }
 }
