@@ -1,4 +1,3 @@
-// Crie este novo arquivo em com.example.plantech.service.FileStorageService.java
 
 package com.example.plantech.service;
 

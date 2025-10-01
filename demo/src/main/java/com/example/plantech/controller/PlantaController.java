@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.example.plantech.dto.LocalizacaoRequestDTO;
 import com.example.plantech.dto.PlantaRequestDTO;
 import java.time.LocalDate;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -163,6 +165,27 @@ public class PlantaController {
         planta.setFotoUrl(filename);
         Planta plantaAtualizada = plantaRepository.save(planta);
 
+        return ResponseEntity.ok(plantaAtualizada);
+    }
+
+    @PutMapping("/{id}/localizacao")
+    public ResponseEntity<Planta> atualizarLocalizacaoPlanta(@PathVariable Long id, @RequestBody LocalizacaoRequestDTO localizacao, Authentication authentication) {
+        Optional<Planta> plantaOpt = plantaRepository.findById(id);
+        if (plantaOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Planta planta = plantaOpt.get();
+        String userEmail = ((UserDetails) authentication.getPrincipal()).getUsername();
+
+        if (!planta.getUser().getEmail().equals(userEmail)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        planta.setLatitude(localizacao.getLatitude());
+        planta.setLongitude(localizacao.getLongitude());
+        
+        Planta plantaAtualizada = plantaRepository.save(planta);
         return ResponseEntity.ok(plantaAtualizada);
     }
 }
