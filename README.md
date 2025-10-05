@@ -1,6 +1,6 @@
-# Projeto Plantech - Teste Prático Full Stack
+# Projeto Plantech
 
-Este projeto consiste em uma aplicação web completa (Back-end e Front-end) para um sistema de Gestão de Entidades (Plantas), desenvolvido para um teste prático de emprego. A aplicação contempla autenticação de usuários, controle de permissões por nível de acesso (usuário comum e administrador) e operações completas de CRUD.
+Este projeto consiste em uma aplicação para um sistema de Gestão de Entidades (Plantas). A aplicação contempla autenticação de usuários, controle de permissões por nível de acesso (usuário comum e administrador) e operações completas de CRUD.
 
 O objetivo deste exercício é demonstrar a capacidade de projetar, desenvolver e entregar uma aplicação funcional, utilizando boas práticas de arquitetura, código limpo e tecnologias modernas.
 
@@ -16,32 +16,19 @@ O objetivo deste exercício é demonstrar a capacidade de projetar, desenvolver 
 * **Persistência:** Spring Data JPA / Hibernate.
 * **Conteinerização:** Docker, Kubernetes (via manifestos YAML).
 
-### Front-end
-* **Framework:** Angular 17+
-* **Linguagem:** TypeScript
-* **Comunicação:** HttpClient para consumo de API REST.
-* **Gerência de Estado:** Serviços e Route Guards para controle de autenticação e permissões.
-
-### Ferramentas
-* **Build:** Maven (Back-end), Angular CLI (Front-end)
-
----
-
 ## ⚙️ Como Executar o Projeto Completo
 
-É necessário executar o Back-end e o Front-end separadamente, em terminais diferentes.
+É necessário executar o Back-end e realizar testes com Postman.
 
 ### Pré-requisitos
 * Git instalado.
 * Java JDK 24+.
-* Node.js e npm instalados.
-* Angular CLI instalado (`npm install -g @angular/cli`).
 * Uma conta gratuita no [Supabase](https://supabase.com/) para criar o banco de dados PostgreSQL.
 
 ### 1. Clonar o Repositório
 ```bash
-git clone [https://github.com/Tap234/Plantech.git]
-cd Plantech
+git clone [https://github.com/Tap234/Plantech_Aplicativo.git]
+cd Plantech_Aplicativo
 
 2. Configurar Variáveis de Ambiente do Back-end
 
@@ -52,12 +39,9 @@ cd Plantech
     DB_PASS=<SUA_SENHA_DO_BANCO>
     JWT_SECRET=c3VwZXItc2VjcmV0LWZvci1wbGFudGVjaC1hcHAtMjAyNS1sb25nLWFuZC1zdHJvbmc=
 
-3. Executar o Front-end (Terminal 1)
-Abra um terminal na pasta do front-end (/plantech-frontend), instale as dependências e inicie o servidor. A aplicação estará disponível em http://localhost:4200.
-
 npm install
 ng serve
-4. Executar o Back-end (Terminal 2)
+3. Executar o Back-end (Terminal 2)
 Escolha um dos métodos abaixo. Docker é o mais recomendado para um teste rápido.
 
 Método de Execução 1 (Preferencial): Docker & Kubernetes
@@ -89,16 +73,7 @@ Via Kubernetes
     Isso criará o Deployment e o Service. O deployment.yaml já está configurado para ler as credenciais a partir do Secret.
 
 Método de Execução 2 (Alternativo): Localmente via Maven
-    1. Carregue as Variáveis de Ambiente (PowerShell):
-    Abra um terminal PowerShell na pasta do back-end (/demo). Cole e execute o script abaixo para carregar as variáveis do seu arquivo .env nesta sessão do terminal.
-
-    Get-Content .\.env | ForEach-Object {
-        if ($_ -match '^(?<key>[^=]+)=(?<value>.*)$') {
-            Set-Content "env:\$($matches.key)" $matches.value
-        }
-    }
-
-    2. Inicie a Aplicação:
+    1. Inicie a Aplicação:
     No mesmo terminal onde você executou o script acima, inicie a aplicação.
 
     ./mvnw.cmd spring-boot:run
