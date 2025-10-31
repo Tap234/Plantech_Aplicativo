@@ -1,9 +1,9 @@
+
 import React, { useState } from 'react';
 import { View, TextInput, Button, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import api from '../../../api';
-
+import api from '../api.js';
 export default function LoginScreen() {
   const [email, setEmail] = useState('user@email.com');
   const [password, setPassword] = useState('senha123');

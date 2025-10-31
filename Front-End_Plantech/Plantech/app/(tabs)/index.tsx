@@ -1,7 +1,6 @@
-// app/(tabs)/index.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Button } from 'react-native';
-import api from '../../api'; // Ajuste o caminho para o arquivo api.js
+import api from '../../api.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { ThemedView } from '@/components/themed-view';
@@ -22,12 +21,10 @@ export default function HomeScreen() {
           });
           setPlantas(response.data);
         } else {
-          // Se não tiver token, manda para a tela de login
           router.replace('/login');
         }
       } catch (error) {
         console.error("Erro ao buscar plantas:", error);
-        // Se o token for inválido, por exemplo
         router.replace('/login');
       } finally {
         setLoading(false);
