@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native'; // 1. IMPORTAR O PLATFORM
 
 const api = axios.create({
-  baseURL: 'http://20.20.20.113:8080/api', //
+  baseURL: 'http://localhost:8080/api',
 });
 
 // 2. MODIFICAR O INTERCEPTOR

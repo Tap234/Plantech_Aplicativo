@@ -2,130 +2,237 @@ import React, { useState } from 'react';
 import { 
   View, 
   TextInput, 
-  Button, 
   Text, 
   Alert, 
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform // 1. IMPORTAR O PLATFORM
+  StyleSheet, 
+  KeyboardAvoidingView, 
+  Platform, 
+  TouchableOpacity,
+  ActivityIndicator,
+  Image as RNImage,
 } from 'react-native';
 import { router } from 'expo-router';
 import api from '../api';
 import * as SecureStore from 'expo-secure-store';
+import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Erro', 'Por favor, preencha o email e a senha.');
+      Alert.alert('Atenção', 'Por favor, preencha o email e a senha.');
       return;
     }
 
-    try {
-      console.log('Tentando login com:', email);
-      const response = await api.post('/login', { //
-        username: email,
-        password: password,
-      }); //
+    setIsLoading(true);
 
-      // 2. MODIFICAR A FORMA DE SALVAR O TOKEN
+    try {
+      const response = await api.post('/auth/login', {
+        email: email,
+        password: password,
+      });
+
       if (response.data && response.data.token) {
-        
         if (Platform.OS === 'web') {
-          // Se for web, usa o localStorage
           localStorage.setItem('userToken', response.data.token);
         } else {
-          // Se for nativo, usa o SecureStore
           await SecureStore.setItemAsync('userToken', response.data.token);
         }
 
-        console.log('Token salvo com sucesso!');
+        router.replace('/(tabs)');
       } else {
-        console.warn('Resposta de login não continha um token.');
-        Alert.alert('Erro', 'Ocorreu um problema no login, resposta inesperada do servidor.');
-        return;
+        Alert.alert('Erro', 'Ocorreu um problema inesperado.');
       }
 
-      console.log('Login bem-sucedido:', response.data);
-      Alert.alert('Login realizado com sucesso!');
-      
-      setEmail('');
-      setPassword('');
-
-      router.replace('/(tabs)'); //
-
-    } catch (error) {
-      console.error('Falha no login:', error);
-      Alert.alert('Falha no login', 'Email ou senha inválidos.');
+    } catch (error: any) {
+      console.error('Erro no login:', error);
+      if (error.response?.status === 401) {
+        Alert.alert('Acesso Negado', 'Email ou senha incorretos.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ... (O restante do return e styles permanece o mesmo)
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <Text style={styles.title}>Login</Text>
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Email (usuário)"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={styles.headerContainer}>
+        <RNImage
+          source={require('../assets/images/PlanTech.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+          accessible
+          accessibilityLabel="PlanTech logo"
+        />
+      </View>
 
-      <View style={styles.buttonContainer}>
-        <Button title="Login" onPress={handleLogin} color="#fff" />
+      <View style={styles.formContainer}>
+        
+        {}
+        <View style={styles.inputWrapper}>
+          <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#9AA7A0"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+        </View>
+        
+        <View style={styles.inputWrapper}>
+          <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#9AA7A0"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Ionicons 
+              name={showPassword ? "eye-off-outline" : "eye-outline"} 
+              size={20} 
+              color="#666" 
+            />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.forgotPasswordContainer}>
+          <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.loginButton} 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.loginButtonText}>Entrar</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.footerContainer}>
+          <Text style={styles.footerText}>Não tem uma conta? </Text>
+          <TouchableOpacity>
+            <Text style={styles.signupText}>Cadastre-se</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 };
 
-// ... (styles)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5ff',
+    backgroundColor: '#E6F7EA',
   },
-  title: {
-    fontSize: 32,
+  headerContainer: {
+    flex: 0.35,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  logo: {
+    marginBottom: 6,
+  },
+  logoImage: {
+    display: 'flex',
+    alignSelf: 'center',
+    width: 180,
+    height: 180,
+    marginBottom: 16,
+    objectFit: 'contain',
+  },
+  welcomeText: {
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 40,
-    color: '#333',
+    color: '#2D6A4F',
+    marginBottom: 5,
+  },
+  subtitleText: {
+    fontSize: 14,
+    color: '#748c94',
+    textAlign: 'center',
+  },
+  formContainer: {
+    flex: 0.65,
+    paddingTop: 40,
+    paddingHorizontal: 30,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 40,
+    paddingHorizontal: 20,
+    height: 60,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#EDF3EF',
+  },
+  inputIcon: {
+    marginRight: 10,
   },
   input: {
-    width: '90%',
-    height: 50,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
+    flex: 1,
+    color: '#333',
     fontSize: 16,
   },
-  buttonContainer: {
-    width: '90%',
-    backgroundColor: '#007BFF',
-    borderRadius: 8,
-    marginTop: 10,
-    overflow: 'hidden',
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 30,
+  },
+  forgotPasswordText: {
+    color: '#0F4F36',
+    fontWeight: '600',
+  },
+  loginButton: {
+    backgroundColor: '#FF7A3D',
+    height: 60,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#2D6A4F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 30,
+  },
+  footerText: {
+    color: '#0F4F36',
+    fontSize: 15,
+  },
+  signupText: {
+    color: '#0F4F36',
+    fontWeight: 'bold',
+    fontSize: 15,
   },
 });
 
