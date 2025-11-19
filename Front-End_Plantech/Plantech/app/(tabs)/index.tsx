@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // Função para abrir a câmera (placeholder)
   const handleOpenCamera = () => {
@@ -18,26 +20,29 @@ export default function HomeScreen() {
         <RNImage source={require('../../assets/images/PlanTech.png')} style={styles.logo} resizeMode="contain" />
       </View>
 
-      {/* Bem-vindo */}
-      <Text style={styles.welcome}>Escaneie sua planta</Text>
+      {/* Texto de instrução (parte superior) */}
+      <Text style={styles.instructionText}>Escaneie sua planta</Text>
 
-      {/* Scanner com botão de câmera */}
+      {/* Scanner com botão de câmera (ocupa a maior parte da tela) */}
       <View style={styles.scannerContainer}>
-        <RNImage source={require('../../assets/images/Scanner.png')} style={styles.scannerImg} resizeMode="contain" />
+        <RNImage source={require('../../assets/images/Scanner.png')} style={styles.scannerImg} resizeMode="cover" />
         <TouchableOpacity style={styles.cameraBtn} onPress={handleOpenCamera} activeOpacity={0.7}>
           {/* Área clicável sobre o ícone da câmera */}
         </TouchableOpacity>
       </View>
 
       {/* Navbar */}
-      <View style={styles.navbar}>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/home')}>
+      <View style={[
+        styles.navbar,
+        { paddingBottom: Math.max(insets.bottom, 12), height: 80 + Math.max(insets.bottom, 12) },
+      ]}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/')}>
           <RNImage source={require('../../assets/images/Icone_Home.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/favoritos')}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/explore')}>
           <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/usuario')}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/login')}>
           <RNImage source={require('../../assets/images/Icone_Usuario.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
       </View>
@@ -58,9 +63,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   logo: {
-    width: 56,
-    height: 56,
-    marginBottom: 2,
+    width: 80,
+    height: 80,
+    marginBottom: 6,
   },
   logoText: {
     fontSize: 44,
@@ -78,18 +83,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scannerContainer: {
-    width: '90%',
-    maxWidth: 400,
-    aspectRatio: 1,
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: 20,
+    maxWidth: 900,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
+    marginBottom: 110,
     position: 'relative',
   },
   scannerImg: {
     width: '100%',
     height: '100%',
-    borderRadius: 32,
+    borderRadius: 28,
+  },
+  instructionText: {
+    marginTop: 8,
+    alignSelf: 'center',
+    fontSize: 22,
+    color: '#174C3C',
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: 12,
   },
   cameraBtn: {
     position: 'absolute',

@@ -6,17 +6,16 @@ import { Platform } from 'react-native'; // 1. IMPORTAR O PLATFORM
 // IMPORTANTE: substitua 'YOUR_COMPUTER_IP' pelo IP da sua máquina na rede
 // (ex: 192.168.0.42) se for testar em um dispositivo real.
 let host = 'localhost';
-if (Platform.OS === 'android') {
-  // Android emulator padrão (Android Studio)
-  host = '10.0.2.2';
-} else if (Platform.OS === 'web') {
-  // No web usamos o hostname atual (útil quando servidor roda na mesma máquina)
+
+if (Platform.OS === 'web') {
   host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
 } else {
-  // iOS simulator e outros: normalmente 'localhost' funciona.
-  // Para dispositivo físico, substitua pelo IP da sua máquina abaixo.
-  host = '192.168.0.86';
+  // PARA CELULAR FÍSICO (CABO OU WI-FI), USE O IP DO SEU PC:
+  host = '192.168.0.86'; // <--- COLOQUE SEU IPV4 AQUI (ex: 20.20.20.113)
 }
+
+// Se estiver usando emulador, pode descomentar a linha abaixo:
+// if (Platform.OS === 'android') host = '10.0.2.2'; 
 
 const api = axios.create({
   baseURL: `http://${host}:8080/api`,
