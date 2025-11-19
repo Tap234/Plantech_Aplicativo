@@ -1,83 +1,133 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, FlatList, StyleSheet, ActivityIndicator, Button, Alert } from 'react-native';
-import api from '../../api';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
-  interface Planta {
-    id: number;
-    nome: string;
-    descricao?: string;
-  }
-  const [plantas, setPlantas] = useState<Planta[]>([]);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const fetchPlantas = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await api.get<Planta[]>('/plantas');
-      setPlantas(response.data);
-    } catch (err: any) {
-      console.error('Erro ao buscar plantas:', err);
-      if (err?.response && (err.response.status === 401 || err.response.status === 403)) {
-        Alert.alert('Sessão expirada', 'Por favor, faça login novamente.');
-        router.replace('/login');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchPlantas();
-    }, [fetchPlantas])
-  );
-
-  const handleLogout = async () => {
-    if (Platform.OS === 'web') {
-      localStorage.removeItem('userToken');
-    } else {
-      await SecureStore.deleteItemAsync('userToken');
-    }
-    router.replace('/login');
+  // Função para abrir a câmera (placeholder)
+  const handleOpenCamera = () => {
+    // Aqui você pode integrar o expo-camera ou outro pacote
+    alert('Abrir câmera!');
   };
 
-  if (loading && plantas.length === 0) {
-    return <ActivityIndicator size="large" style={styles.loader} />;
-  }
-
   return (
-    <ThemedView style={styles.container}>
-      <FlatList
-        data={plantas}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.item}>
-            <ThemedText type="subtitle">{item.nome}</ThemedText>
-            <ThemedText>{item.descricao}</ThemedText>
-            {}
-          </View>
-        )}
-        ListEmptyComponent={<ThemedText>Nenhuma planta encontrada.</ThemedText>}
-        ListHeaderComponent={
-          <View style={styles.header}>
-             <ThemedText type="title">Minhas Plantas</ThemedText>
-             <Button title="Sair" onPress={handleLogout} color="red" />
-          </View>
-        }
-      />
-    </ThemedView>
+    <View style={styles.container}>
+      {/* Logo + texto */}
+      <View style={styles.logoContainer}>
+        <RNImage source={require('../../assets/images/PlanTech.png')} style={styles.logo} resizeMode="contain" />
+      </View>
+
+      {/* Bem-vindo */}
+      <Text style={styles.welcome}>Escaneie sua planta</Text>
+
+      {/* Scanner com botão de câmera */}
+      <View style={styles.scannerContainer}>
+        <RNImage source={require('../../assets/images/Scanner.png')} style={styles.scannerImg} resizeMode="contain" />
+        <TouchableOpacity style={styles.cameraBtn} onPress={handleOpenCamera} activeOpacity={0.7}>
+          {/* Área clicável sobre o ícone da câmera */}
+        </TouchableOpacity>
+      </View>
+
+      {/* Navbar */}
+      <View style={styles.navbar}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/home')}>
+          <RNImage source={require('../../assets/images/Icone_Home.png')} style={styles.navIcon} resizeMode="contain" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/favoritos')}>
+          <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={styles.navIcon} resizeMode="contain" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/usuario')}>
+          <RNImage source={require('../../assets/images/Icone_Usuario.png')} style={styles.navIcon} resizeMode="contain" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, paddingTop: 50 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  loader: { flex: 1, justifyContent: 'center' },
-  item: { padding: 20, marginVertical: 8, backgroundColor: '#e0e0e0', borderRadius: 10 },
+  container: {
+    flex: 1,
+    backgroundColor: '#FCFAF6',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 32,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  logo: {
+    width: 56,
+    height: 56,
+    marginBottom: 2,
+  },
+  logoText: {
+    fontSize: 44,
+    fontWeight: 'bold',
+    color: '#174C3C',
+    letterSpacing: -2,
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Arial Rounded MT Bold' : 'sans-serif',
+  },
+  welcome: {
+    fontSize: 28,
+    color: '#174C3C',
+    fontWeight: '500',
+    marginBottom: 18,
+    textAlign: 'center',
+  },
+  scannerContainer: {
+    width: '90%',
+    maxWidth: 400,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    position: 'relative',
+  },
+  scannerImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+  },
+  cameraBtn: {
+    position: 'absolute',
+    left: '50%',
+    bottom: '12%',
+    transform: [{ translateX: -32 }],
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    zIndex: 2,
+  },
+  navbar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
+    paddingHorizontal: 16,
+  },
+  navBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+  },
+  navIcon: {
+    width: 40,
+    height: 40,
+  },
 });
