@@ -39,10 +39,10 @@ export default function HomeScreen() {
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/')}>
           <RNImage source={require('../../assets/images/Icone_Home.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/explore')}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/favoritos')}>
           <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/login')}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/usuario')}>
           <RNImage source={require('../../assets/images/Icone_Usuario.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
       </View>

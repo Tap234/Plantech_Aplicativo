@@ -1,59 +1,49 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  TextInput, 
-  Text, 
-  Alert, 
-  StyleSheet, 
-  KeyboardAvoidingView, 
-  Platform, 
+import {
+  View,
+  TextInput,
+  Text,
+  Alert,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
   ActivityIndicator,
   Image as RNImage,
 } from 'react-native';
 import { router } from 'expo-router';
 import api from '../api';
-import * as SecureStore from 'expo-secure-store';
-import { Ionicons } from '@expo/vector-icons';
 
-const LoginScreen = () => {
+const SignupScreen = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Atenção', 'Por favor, preencha o email e a senha.');
+  const handleSignup = async () => {
+    if (!name || !email || !password) {
+      Alert.alert('Atenção', 'Preencha nome, email e senha.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const response = await api.post('/auth/login', {
-        email: email,
-        password: password,
+      // endpoint de registro (ajuste conforme backend)
+      await api.post('/auth/register', {
+        name,
+        email,
+        password,
       });
 
-      if (response.data && response.data.token) {
-        if (Platform.OS === 'web') {
-          localStorage.setItem('userToken', response.data.token);
-        } else {
-          await SecureStore.setItemAsync('userToken', response.data.token);
-        }
-
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Erro', 'Ocorreu um problema inesperado.');
-      }
-
+      Alert.alert('Sucesso', 'Conta criada com sucesso! Faça login.');
+      router.replace('/login');
     } catch (error: any) {
-      console.error('Erro no login:', error);
-      if (error.response?.status === 401) {
-        Alert.alert('Acesso Negado', 'Email ou senha incorretos.');
+      console.error('Erro no cadastro:', error);
+      if (error.response?.data?.message) {
+        Alert.alert('Erro', error.response.data.message);
       } else {
-        Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
+        Alert.alert('Erro', 'Não foi possível cadastrar.');
       }
     } finally {
       setIsLoading(false);
@@ -61,8 +51,8 @@ const LoginScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
       <View style={styles.headerContainer}>
@@ -76,10 +66,18 @@ const LoginScreen = () => {
       </View>
 
       <View style={styles.formContainer}>
-        
-        {}
         <View style={styles.inputWrapper}>
-          <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Name"
+            placeholderTextColor="#9AA7A0"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+          />
+        </View>
+
+        <View style={styles.inputWrapper}>
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -90,46 +88,34 @@ const LoginScreen = () => {
             autoCapitalize="none"
           />
         </View>
-        
+
         <View style={styles.inputWrapper}>
-          <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="Password"
             placeholderTextColor="#9AA7A0"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            secureTextEntry
           />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-            <Ionicons 
-              name={showPassword ? "eye-off-outline" : "eye-outline"} 
-              size={20} 
-              color="#666" 
-            />
-          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.forgotPasswordContainer}>
-          <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.loginButton} 
-          onPress={handleLogin}
+        <TouchableOpacity
+          style={styles.signupButton}
+          onPress={handleSignup}
           disabled={isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.loginButtonText}>Entrar</Text>
+            <Text style={styles.signupButtonText}>Sign Up</Text>
           )}
         </TouchableOpacity>
 
         <View style={styles.footerContainer}>
-          <Text style={styles.footerText}>Não tem uma conta? </Text>
-          <TouchableOpacity onPress={() => router.push('/signup')}>
-            <Text style={styles.signupText}>Cadastre-se</Text>
+          <Text style={styles.footerText}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.replace('/login')}>
+            <Text style={styles.loginText}>Log in</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -149,9 +135,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  logo: {
-    marginBottom: 6,
-  },
   logoImage: {
     display: 'flex',
     alignSelf: 'center',
@@ -160,25 +143,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     objectFit: 'contain',
   },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2D6A4F',
-    marginBottom: 5,
-  },
-  subtitleText: {
-    fontSize: 14,
-    color: '#748c94',
-    textAlign: 'center',
-  },
   formContainer: {
     flex: 0.65,
     paddingTop: 40,
     paddingHorizontal: 30,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 40,
     paddingHorizontal: 20,
@@ -186,24 +156,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#EDF3EF',
-  },
-  inputIcon: {
-    marginRight: 10,
+    justifyContent: 'center',
   },
   input: {
-    flex: 1,
     color: '#333',
     fontSize: 16,
   },
-  forgotPasswordContainer: {
-    alignItems: 'flex-end',
-    marginBottom: 30,
-  },
-  forgotPasswordText: {
-    color: '#0F4F36',
-    fontWeight: '600',
-  },
-  loginButton: {
+  signupButton: {
     backgroundColor: '#FF7A3D',
     height: 60,
     borderRadius: 40,
@@ -215,7 +174,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 5,
   },
-  loginButtonText: {
+  signupButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
@@ -229,11 +188,11 @@ const styles = StyleSheet.create({
     color: '#0F4F36',
     fontSize: 15,
   },
-  signupText: {
+  loginText: {
     color: '#0F4F36',
     fontWeight: 'bold',
     fontSize: 15,
   },
 });
 
-export default LoginScreen;
+export default SignupScreen;
