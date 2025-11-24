@@ -77,9 +77,7 @@ export default function PlantaDetail() {
           </View>
         </View>
 
-        {/* ... restante do código da navbar igual ... */}
       </ScrollView>
-      {/* ... navbar ... */}
     </View>
   );
 }

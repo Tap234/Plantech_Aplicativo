@@ -27,6 +27,11 @@ import com.example.plantech.repository.UserRepository;
 import com.example.plantech.service.PlantNetService;
 import com.example.plantech.dto.PlantNetResponse;
 import java.nio.file.Path;
+import com.example.plantech.entity.PlantaHistorico;
+import com.example.plantech.repository.PlantaHistoricoRepository;
+import com.example.plantech.service.WeatherService;
+import com.example.plantech.service.GeminiService;
+import org.json.JSONObject;
 
 @RestController
 @RequestMapping("/api/plantas")
@@ -43,6 +48,15 @@ public class PlantaController {
 
     @Autowired
     private PlantNetService plantNetService;
+
+    @Autowired
+    private PlantaHistoricoRepository historicoRepository;
+
+    @Autowired
+    private WeatherService weatherService;
+
+    @Autowired
+    private GeminiService geminiService;
 
     @PostMapping
     public ResponseEntity<Planta> criarPlanta(@RequestBody PlantaRequestDTO plantaDTO, Authentication authentication) {
@@ -164,22 +178,61 @@ public class PlantaController {
         }
 
         String filename = fileStorageService.save(file);
-        planta.setFotoUrl(filename);
+        
         try {
             Path arquivoPath = fileStorageService.load(filename);
-            PlantNetResponse respostaIA = plantNetService.identificarPlanta(arquivoPath);
 
-            if (respostaIA != null && respostaIA.getResults() != null && !respostaIA.getResults().isEmpty()) {
-                PlantNetResponse.Result topResult = respostaIA.getResults().get(0);
+            String nomeEspecie = planta.getEspecieIdentificada();
+            
+            if (nomeEspecie == null || nomeEspecie.isEmpty()) {
+                PlantNetResponse respostaIA = plantNetService.identificarPlanta(arquivoPath);
                 
-                planta.setEspecieIdentificada(topResult.getSpecies().getScientificNameWithoutAuthor());
-                planta.setProbabilidadeIdentificacao(topResult.getScore());
-                
-                if (topResult.getSpecies().getCommonNames() != null && !topResult.getSpecies().getCommonNames().isEmpty()) {
+                if (respostaIA != null && respostaIA.getResults() != null && !respostaIA.getResults().isEmpty()) {
+                    PlantNetResponse.Result topResult = respostaIA.getResults().get(0);
+                    nomeEspecie = topResult.getSpecies().getScientificNameWithoutAuthor();
+                    
+                    planta.setEspecieIdentificada(nomeEspecie);
+                    planta.setProbabilidadeIdentificacao(topResult.getScore());
+                } else {
+                    nomeEspecie = "Planta Desconhecida";
                 }
             }
+
+            String climaAtual = "Localização não definida";
+            if (planta.getLatitude() != null && planta.getLongitude() != null) {
+                climaAtual = weatherService.obterClimaAtual(planta.getLatitude(), planta.getLongitude());
+            }
+
+            List<PlantaHistorico> historicoRecente = historicoRepository.findTop3ByPlantaIdOrderByDataRegistroDesc(planta.getId());
+
+            JSONObject analiseGemini = geminiService.analisarPlanta(arquivoPath, nomeEspecie, climaAtual, historicoRecente);
+
+            PlantaHistorico novoRegistro = new PlantaHistorico();
+            novoRegistro.setPlanta(planta);
+            novoRegistro.setFotoUrl(filename);
+            novoRegistro.setDataRegistro(java.time.LocalDateTime.now());
+            novoRegistro.setCondicaoTempo(climaAtual);
+            
+            if (analiseGemini.has("diagnostico")) {
+                novoRegistro.setDiagnosticoIA(analiseGemini.getString("diagnostico"));
+            }
+            if (analiseGemini.has("tratamento")) {
+                String recomendacao = analiseGemini.getString("tratamento");
+                if (analiseGemini.has("dica_clima")) {
+                    recomendacao += "\n💡 Dica do Clima: " + analiseGemini.getString("dica_clima");
+                }
+                novoRegistro.setRecomendacaoCurativa(recomendacao);
+            }
+
+            historicoRepository.save(novoRegistro);
+
+            planta.setFotoUrl(filename);
+            
+
         } catch (Exception e) {
-            System.err.println("Erro ao identificar planta: " + e.getMessage());
+            System.err.println("Erro no processamento Inteligente: " + e.getMessage());
+            e.printStackTrace();
+            planta.setFotoUrl(filename);
         }
 
         Planta plantaAtualizada = plantaRepository.save(planta);
