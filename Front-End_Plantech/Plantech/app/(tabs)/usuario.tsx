@@ -8,6 +8,8 @@ import {
   Image as RNImage,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function UsuarioScreen() {
@@ -42,7 +44,28 @@ export default function UsuarioScreen() {
           <Text style={styles.cardText}>Atualizações cadastrais</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={() => alert('Sair da conta - placeholder')}>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          activeOpacity={0.8}
+          onPress={async () => {
+            // Confirmação simples
+            Alert.alert('Confirmar', 'Deseja sair da conta?', [
+              { text: 'Cancelar', style: 'cancel' },
+              { text: 'Sair', style: 'destructive', onPress: async () => {
+                try {
+                  if (Platform.OS === 'web') {
+                    localStorage.removeItem('userToken');
+                  } else {
+                    await SecureStore.deleteItemAsync('userToken');
+                  }
+                } catch (e) {
+                  // ignora
+                }
+                router.replace('/login');
+              } }
+            ]);
+          }}
+        >
           <Text style={styles.logoutText}>Sair da conta</Text>
         </TouchableOpacity>
       </View>

@@ -14,6 +14,7 @@ export default function HomeScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [identifying, setIdentifying] = useState(false);
   const [identifyResult, setIdentifyResult] = useState<any>(null);
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
 
   // Pede permissões e abre a câmera
   const openCamera = async () => {
@@ -57,10 +58,10 @@ export default function HomeScreen() {
     if (!localUri) return;
     try {
       setIdentifying(true);
-
       // 1) Criar planta temporária para que o backend faça a identificação ao receber a foto
+      let plant: any = null;
       const createRes = await api.post('/plantas', { nome: 'Identificando...', descricao: '' });
-      const plant = createRes.data;
+      plant = createRes.data;
 
       // 2) Enviar foto para /plantas/{id}/foto (o backend já chama PlantNet e atualiza a planta)
       const fd = new FormData();
@@ -91,7 +92,26 @@ export default function HomeScreen() {
       setIdentifyResult(updatedPlant);
     } catch (error: any) {
       console.error('Erro ao identificar:', error);
-      Alert.alert('Erro', 'Não foi possível identificar a imagem.');
+      // Se criou planta temporária, remove para não poluir favoritos
+      try {
+        // @ts-ignore
+        if (plant && plant.id) await api.delete(`/plantas/${plant.id}`);
+      } catch (e) {
+        // ignora erro na exclusão
+      }
+      // marca erro de identificação (mantém modal aberto)
+      setIdentifyError('Não foi possível identificar a imagem');
+
+      // Avisar o usuário e oferecer tirar outra foto — sem fechar o modal
+      Alert.alert(
+        'Não foi possível identificar a imagem',
+        'Deseja tirar outra foto agora?',
+        [
+          { text: 'Fechar', style: 'cancel', onPress: () => { setModalVisible(false); setImageUri(null); setIdentifyResult(null); setIdentifyError(null); setTimeout(() => router.replace('/'), 250); } },
+          { text: 'Tirar outra foto', onPress: () => { /* não fechar modal aqui; apenas abrir a câmera */ setTimeout(() => openCamera(), 200); } },
+        ],
+        { cancelable: true }
+      );
     } finally {
       setIdentifying(false);
     }
@@ -99,43 +119,90 @@ export default function HomeScreen() {
 
   // Salva a planta retornada pela identificação como nova planta do usuário
   const saveAsPlant = async () => {
-    // Se já temos um resultado com id (foi criado durante a identificação), apenas navegar para favoritos
-    if (identifyResult && identifyResult.id) {
-      Alert.alert('Adicionado', 'Planta salva nas suas plantas/favoritos.');
-      setModalVisible(false);
-      setImageUri(null);
-      router.replace('/favoritos');
-      return;
-    }
-
     if (!identifyResult) {
       Alert.alert('Nada a salvar', 'Faça a identificação antes de salvar.');
       return;
     }
 
     try {
-      // cria planta com nome sugerido (ajuste conforme campos do backend)
-      const nome = identifyResult.species || identifyResult.name || 'Planta identificada';
-      const descricao = identifyResult.description || '';
+      // Se já temos um resultado com id, garantimos que a foto do usuário foi enviada
+      if (identifyResult && identifyResult.id) {
+        // se a planta já possui foto no backend, apenas navegar; caso contrário, envia a foto e pega a resposta
+        const hasFoto = identifyResult.fotoUrl || identifyResult.foto || identifyResult.imagemUrl || identifyResult.url;
+        if (!hasFoto && imageUri) {
+          try {
+            const fd = new FormData();
+            const filename = imageUri.split('/').pop() || 'photo.jpg';
+            const match = filename.match(/\.([0-9a-z]+)$/i);
+            const type = match ? `image/${match[1]}` : 'image/jpeg';
+            // @ts-ignore
+            fd.append('file', { uri: imageUri, name: filename, type });
+            const uploadRes = await api.post(`/plantas/${identifyResult.id}/foto`, fd);
+            // atualizar identifyResult com a resposta do backend
+            let updated = uploadRes.data;
+            if (updated && !updated.fotoUrl && updated.id) {
+              // tentar buscar a planta atualizada se fotoUrl não veio na resposta
+              try {
+                const fresh = await api.get(`/plantas/${updated.id}`);
+                updated = fresh.data || updated;
+              } catch (e) {
+                // ignora
+              }
+            }
+            if (updated) setIdentifyResult(updated);
+          } catch (e: any) {
+            console.error('Erro ao enviar foto da planta existente:', e);
+            Alert.alert('Erro', 'Não foi possível enviar a foto da planta.');
+            return;
+          }
+        }
+
+        Alert.alert('Adicionado', 'Planta salva nas suas plantas/favoritos.');
+        setModalVisible(false);
+        setImageUri(null);
+        setIdentifyResult(null);
+        router.replace('/favoritos');
+        return;
+      }
+
+      // Caso não exista id (identificação sugerida mas planta não criada), cria planta e anexa foto do usuário
+      const nome = identifyResult.especieIdentificada || identifyResult.species || identifyResult.name || 'Planta identificada';
+      const descricao = identifyResult.descricao || identifyResult.description || '';
 
       const createRes = await api.post('/plantas', { nome, descricao });
-      const newPlant = createRes.data;
+      let newPlant: any = createRes.data;
 
-      // enviar foto para o endpoint de upload da planta
       if (imageUri && newPlant && newPlant.id) {
-        const fd = new FormData();
-        const filename = imageUri.split('/').pop() || 'photo.jpg';
-        const match = filename.match(/\.([0-9a-z]+)$/i);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        // @ts-ignore
-        fd.append('file', { uri: imageUri, name: filename, type });
-        await api.post(`/plantas/${newPlant.id}/foto`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        try {
+          const fd = new FormData();
+          const filename = imageUri.split('/').pop() || 'photo.jpg';
+          const match = filename.match(/\.([0-9a-z]+)$/i);
+          const type = match ? `image/${match[1]}` : 'image/jpeg';
+          // @ts-ignore
+          fd.append('file', { uri: imageUri, name: filename, type });
+          const uploadRes = await api.post(`/plantas/${newPlant.id}/foto`, fd);
+          // atualiza newPlant com resposta do backend (que seta fotoUrl)
+          let updated = uploadRes.data;
+          if (updated && !updated.fotoUrl && updated.id) {
+            try {
+              const fresh = await api.get(`/plantas/${updated.id}`);
+              updated = fresh.data || updated;
+            } catch (e) {
+              // ignora
+            }
+          }
+          if (updated) newPlant = updated;
+        } catch (e: any) {
+          console.error('Erro ao enviar foto da nova planta:', e);
+          Alert.alert('Erro', 'Não foi possível enviar a foto da planta.');
+          return;
+        }
       }
 
       Alert.alert('Salvo', 'Planta adicionada às suas plantas.');
       setModalVisible(false);
       setImageUri(null);
-      // ir para favoritos para ver a planta
+      setIdentifyResult(null);
       router.replace('/favoritos');
     } catch (error: any) {
       console.error('Erro ao salvar planta:', error);
@@ -188,6 +255,8 @@ export default function HomeScreen() {
             <View style={modalStyles.resultRow}>
               {identifying ? (
                 <ActivityIndicator size="large" color="#0F4F3C" />
+              ) : identifyError ? (
+                <Text style={modalStyles.errorText}>{identifyError}</Text>
               ) : identifyResult ? (
                 <>
                   <Text style={modalStyles.speciesText}>{identifyResult.especieIdentificada || identifyResult.species || identifyResult.nome || 'Indefinido'}</Text>
@@ -201,10 +270,15 @@ export default function HomeScreen() {
               )}
             </View>
 
-            <View style={modalStyles.actionsRow}>
-              <TouchableOpacity onPress={saveAsPlant} style={modalStyles.primaryBtn}>
-                <Text style={modalStyles.primaryBtnText}>{identifyResult && identifyResult.id ? 'Adicionar aos favoritos' : 'Salvar como planta'}</Text>
+            <View style={modalStyles.actionsRowTwo}>
+              <TouchableOpacity
+                onPress={saveAsPlant}
+                style={[modalStyles.primaryBtn, (!identifyResult || (!identifyResult.especieIdentificada && !identifyResult.id)) && modalStyles.disabledBtn]}
+                disabled={!identifyResult || (!identifyResult.especieIdentificada && !identifyResult.id) || identifying}
+              >
+                <Text style={modalStyles.primaryBtnText}>Adicionar aos favoritos</Text>
               </TouchableOpacity>
+
               <TouchableOpacity onPress={async () => {
                 // se identificação criou planta temporária, excluir quando fechar sem salvar
                 try {
@@ -220,8 +294,10 @@ export default function HomeScreen() {
                 setModalVisible(false);
                 setImageUri(null);
                 setIdentifyResult(null);
-              }} style={modalStyles.secondaryBtn}>
-                <Text>Fechar</Text>
+                // volta para a tela home após fechar
+                setTimeout(() => router.replace('/'), 250);
+              }} style={modalStyles.closeBtn}>
+                <Text style={modalStyles.closeBtnText}>Fechar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -355,8 +431,12 @@ const modalStyles = StyleSheet.create({
   confidenceText: { fontSize: 14, color: '#174C3C', marginTop: 6 },
   descText: { marginTop: 8, color: '#2F6B55' },
   infoText: { fontSize: 16, color: '#666' },
+  errorText: { fontSize: 16, color: '#D9534F', fontWeight: '600' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 },
-  primaryBtn: { flex: 1, marginRight: 8, paddingVertical: 12, backgroundColor: '#FF7A3D', borderRadius: 10, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontWeight: '700' },
-  secondaryBtn: { paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#D9D9D9', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionsRowTwo: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 12 },
+  primaryBtn: { flex: 1, marginRight: 8, paddingVertical: 14, backgroundColor: '#FF7A3D', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  closeBtn: { flex: 1, marginLeft: 8, paddingVertical: 14, backgroundColor: '#E6E6E6', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { color: '#174C3C', fontWeight: '700', fontSize: 16 },
+  disabledBtn: { backgroundColor: '#F2B99A', opacity: 0.9 },
 });

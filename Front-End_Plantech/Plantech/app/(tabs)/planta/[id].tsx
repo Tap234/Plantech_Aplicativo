@@ -45,11 +45,18 @@ export default function PlantaDetail() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <RNImage
-          source={plant.fotoUrl ? { uri: `${(api.defaults.baseURL || 'http://192.168.0.86:8080').replace('/api','/uploads')}/${plant.fotoUrl}` } : require('../../../assets/images/PlanTech.png')}
-          style={styles.image}
-          resizeMode="cover"
-        />
+        {(() => {
+          const uploadsBase = api.defaults.baseURL ? api.defaults.baseURL.replace('/api', '/uploads') : 'http://localhost:8080/uploads';
+          const fotoField = plant.fotoUrl || plant.foto || plant.imagemUrl || plant.imagem || plant.url || null;
+          const imageUri = fotoField ? `${uploadsBase}/${fotoField}` : null;
+          return (
+            <RNImage
+              source={imageUri ? { uri: imageUri } : require('../../../assets/images/PlanTech.png')}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          );
+        })()}
 
         <Text style={styles.title}>{plant.nome}</Text>
 

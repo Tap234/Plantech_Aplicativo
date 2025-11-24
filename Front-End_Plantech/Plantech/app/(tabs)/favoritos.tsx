@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type PlantaItem = {
   id: number | string;
@@ -29,6 +30,13 @@ export default function FavoritosScreen() {
     loadPlantas();
   }, []);
 
+  // Recarrega sempre que a tela ganha foco (para pegar novas plantas adicionadas)
+  useFocusEffect(
+    useCallback(() => {
+      loadPlantas();
+    }, [])
+  );
+
   async function loadPlantas() {
     try {
       setLoading(true);
@@ -36,7 +44,6 @@ export default function FavoritosScreen() {
       setPlantas(res.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar plantas:', error);
-      // Se houver erro de autenticação, redireciona para login
       if (error.response?.status === 401) {
         router.replace('/login');
       }
@@ -55,11 +62,14 @@ export default function FavoritosScreen() {
     >
       <View style={styles.card}>
         <View style={styles.thumb}>
-          {item.fotoUrl ? (
-            <RNImage source={{ uri: `${uploadsBase}/${item.fotoUrl}` }} style={{ width: 64, height: 64, borderRadius: 12 }} />
-          ) : (
-            <Text style={styles.thumbText}>{item.nome?.charAt(0)}</Text>
-          )}
+          {(() => {
+            const fotoField = item.fotoUrl || (item as any).foto || (item as any).imagemUrl || (item as any).imagem || (item as any).url || null;
+            if (fotoField) {
+              const imageUri = `${uploadsBase}/${fotoField}`;
+              return <RNImage source={{ uri: imageUri }} style={{ width: 64, height: 64, borderRadius: 12 }} />;
+            }
+            return <Text style={styles.thumbText}>{item.nome?.charAt(0)}</Text>;
+          })()}
         </View>
         <Text style={styles.cardTitle}>{item.nome}</Text>
       </View>
