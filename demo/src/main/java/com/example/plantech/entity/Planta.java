@@ -11,8 +11,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
@@ -31,6 +33,16 @@ public class Planta {
     private Double longitude;
     private String especieIdentificada;
     private Double probabilidadeIdentificacao;
+    private LocalDate proximaRega;
+    @Column(columnDefinition = "TEXT")
+    private String recomendacaoDiaria;
+    
+    private boolean acaoDiariaRealizada;
+    
+    private LocalDateTime dataUltimaFotoControle;
+    
+    private String preferenciaSol;
+    private String preferenciaUmidade;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -90,4 +102,23 @@ public class Planta {
 
     public Double getProbabilidadeIdentificacao() { return probabilidadeIdentificacao; }
     public void setProbabilidadeIdentificacao(Double probabilidadeIdentificacao) { this.probabilidadeIdentificacao = probabilidadeIdentificacao; }
+
+    public LocalDate getProximaRega() { return proximaRega; }
+    public void setProximaRega(LocalDate proximaRega) { this.proximaRega = proximaRega; }
+
+    public String getRecomendacaoDiaria() { return recomendacaoDiaria; }
+    public void setRecomendacaoDiaria(String recomendacaoDiaria) { this.recomendacaoDiaria = recomendacaoDiaria; }
+
+    public boolean isAcaoDiariaRealizada() { return acaoDiariaRealizada; }
+    public void setAcaoDiariaRealizada(boolean acaoDiariaRealizada) { this.acaoDiariaRealizada = acaoDiariaRealizada; }
+
+    public LocalDateTime getDataUltimaFotoControle() { return dataUltimaFotoControle; }
+    public void setDataUltimaFotoControle(LocalDateTime dataUltimaFotoControle) { this.dataUltimaFotoControle = dataUltimaFotoControle; }
+
+    public String getPreferenciaSol() { return preferenciaSol; }
+    public void setPreferenciaSol(String preferenciaSol) { this.preferenciaSol = preferenciaSol; }
+
+    public String getPreferenciaUmidade() { return preferenciaUmidade; }
+    public void setPreferenciaUmidade(String preferenciaUmidade) { this.preferenciaUmidade = preferenciaUmidade; }
 }
+

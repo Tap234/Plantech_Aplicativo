@@ -1,17 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image as RNImage, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Image as RNImage, 
+  TouchableOpacity, 
+  ScrollView, 
+  ActivityIndicator, 
+  Alert 
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker'; // Import necessário
 import api from '../../../api';
 
 export default function PlantaDetail() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const id = params.id as string;
 
   const [plant, setPlant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sendingPhoto, setSendingPhoto] = useState(false);
 
   useEffect(() => {
     loadPlant();
@@ -23,17 +32,58 @@ export default function PlantaDetail() {
       const res = await api.get(`/plantas/${id}`);
       setPlant(res.data);
     } catch (error) {
-      alert('Erro ao carregar planta');
+      Alert.alert('Erro', 'Erro ao carregar planta');
       router.back();
     } finally {
       setLoading(false);
     }
   }
 
-  // Função para lidar com o upload da foto (simplificada para exemplo)
-  // Você precisará integrar o ImagePicker aqui depois
-  const handlePhotoUpload = () => {
-     alert('Aqui você integrará o expo-image-picker para enviar a foto para /api/plantas/' + id + '/foto');
+  // --- LÓGICA DE UPLOAD DA FOTO DE CONTROLE (Conectado ao Backend) ---
+  const handlePhotoUpload = async () => {
+    // 1. Pedir permissão
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão negada', 'Precisamos da câmera para analisar a saúde da planta.');
+      return;
+    }
+
+    // 2. Abrir Câmera
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      
+      try {
+        setSendingPhoto(true);
+        
+        // 3. Preparar o arquivo para envio (FormData)
+        const fd = new FormData();
+        const filename = uri.split('/').pop() || 'photo.jpg';
+        const match = filename.match(/\.([0-9a-z]+)$/i);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        
+        // @ts-ignore: O React Native aceita esse formato no FormData
+        fd.append('file', { uri: uri, name: filename, type });
+
+        // 4. Enviar para o endpoint de MONITORAMENTO (e não o de cadastro)
+        await api.post(`/plantas/${id}/foto-controle`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        Alert.alert('Sucesso', 'Análise de saúde enviada! O histórico foi atualizado.');
+        loadPlant(); // Recarrega para atualizar dados da planta se necessário
+
+      } catch (error) {
+        console.error(error);
+        Alert.alert('Erro', 'Falha ao enviar a foto para análise.');
+      } finally {
+        setSendingPhoto(false);
+      }
+    }
   };
 
   if (loading) {
@@ -42,39 +92,77 @@ export default function PlantaDetail() {
 
   if (!plant) return null;
 
+  // URL da foto principal da planta
+  const uploadsBase = api.defaults.baseURL ? api.defaults.baseURL.replace('/api', '/uploads') : 'http://localhost:8080/uploads';
+  const fotoField = plant.fotoUrl || plant.foto || plant.imagemUrl || plant.url || null;
+  const imageUri = fotoField ? `${uploadsBase}/${fotoField}` : null;
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {(() => {
-          const uploadsBase = api.defaults.baseURL ? api.defaults.baseURL.replace('/api', '/uploads') : 'http://localhost:8080/uploads';
-          const fotoField = plant.fotoUrl || plant.foto || plant.imagemUrl || plant.imagem || plant.url || null;
-          const imageUri = fotoField ? `${uploadsBase}/${fotoField}` : null;
-          return (
-            <RNImage
-              source={imageUri ? { uri: imageUri } : require('../../../assets/images/PlanTech.png')}
-              style={styles.image}
-              resizeMode="cover"
-            />
-          );
-        })()}
+        
+        {/* FOTO DA PLANTA */}
+        <RNImage
+          source={imageUri ? { uri: imageUri } : require('../../../assets/images/PlanTech.png')}
+          style={styles.image}
+          resizeMode="cover"
+        />
 
         <Text style={styles.title}>{plant.nome}</Text>
+        <Text style={styles.subtitle}>{plant.especieIdentificada || 'Espécie não identificada'}</Text>
 
-        <TouchableOpacity style={styles.photoCard} activeOpacity={0.85} onPress={handlePhotoUpload}>
+        {/* BOTÃO DE FOTO DE CONTROLE (SAÚDE) */}
+        <TouchableOpacity 
+          style={styles.photoCard} 
+          activeOpacity={0.85} 
+          onPress={handlePhotoUpload}
+          disabled={sendingPhoto}
+        >
           <View style={styles.photoIconWrap}>
-            <Text style={styles.photoIcon}>📷</Text>
+            {sendingPhoto ? <ActivityIndicator color="#0F4F3C" /> : <Text style={styles.photoIcon}>📷</Text>}
           </View>
-          <Text style={styles.photoCardText}>Fotos de controle</Text>
+          <Text style={styles.photoCardText}>
+            {sendingPhoto ? 'Enviando...' : 'Nova Foto de Controle'}
+          </Text>
         </TouchableOpacity>
 
+        {/* CARD DE RECOMENDAÇÃO DIÁRIA (GERADA PELO JOB) */}
         <View style={styles.tasksCard}>
-          <Text style={styles.tasksTitle}>Tarefas de hoje</Text>
-          <View style={styles.taskList}>
-            <Text style={styles.taskItem}>- Regar com 300 ml</Text>
-            <Text style={styles.taskItem}>- Adubo NPK leve</Text>
-            <Text style={styles.taskItem}>- Evitar sol forte</Text>
-            <Text style={styles.taskItem}>- Manter umidade alvo de 60%</Text>
-          </View>
+          <Text style={styles.tasksTitle}>📅 Recomendação de Hoje</Text>
+          
+          {plant.recomendacaoDiaria ? (
+             <>
+               <Text style={styles.taskItem}>{plant.recomendacaoDiaria}</Text>
+               
+               {/* Botão de Check Diário */}
+               {!plant.acaoDiariaRealizada ? (
+                 <TouchableOpacity 
+                   style={styles.checkBtn} 
+                   onPress={async () => {
+                      try {
+                        await api.post(`/plantas/${id}/check-diario`);
+                        Alert.alert("Sucesso", "Registrado! A IA aprenderá com isso.");
+                        loadPlant(); 
+                      } catch (e) { Alert.alert("Erro", "Erro ao registrar ação."); }
+                   }}
+                 >
+                   <Text style={styles.checkBtnText}>✅ Marcar como Feito</Text>
+                 </TouchableOpacity>
+               ) : (
+                 <Text style={styles.doneText}>Tarefa de hoje concluída! 🎉</Text>
+               )}
+             </>
+          ) : (
+             <Text style={styles.aiText}>Aguardando análise diária da IA...</Text>
+          )}
+        </View>
+
+        {/* INFORMAÇÕES EXTRAS */}
+        <View style={styles.infoCard}>
+           <Text style={styles.infoLabel}>Próxima Rega Estimada:</Text>
+           <Text style={styles.infoValue}>
+             {plant.proximaRega ? new Date(plant.proximaRega).toLocaleDateString('pt-BR') : 'Calculando...'}
+           </Text>
         </View>
 
       </ScrollView>
@@ -95,11 +183,18 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   title: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '700',
     color: '#0F4F3C',
     textAlign: 'center',
-    marginVertical: 12,
+    marginTop: 12,
+  },
+  subtitle: {
+    fontSize: 18,
+    color: '#2F6B55',
+    textAlign: 'center',
+    marginBottom: 18,
+    fontStyle: 'italic'
   },
   photoCard: {
     width: '92%',
@@ -139,42 +234,45 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  tasksTitle: { fontSize: 20, fontWeight: '700', color: '#0F4F3C', marginBottom: 8 },
-  taskList: { paddingLeft: 4 },
-  taskItem: { fontSize: 16, color: '#174C3C', marginBottom: 6 },
-
-  description: { fontSize: 16, color: '#174C3C', width: '92%', marginBottom: 18, textAlign: 'center' },
-  aiCard: {
-    width: '92%',
-    backgroundColor: '#E6F4EA',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: '#0F4F3C',
-  },
-  aiTitle: { fontWeight: 'bold', color: '#0F4F3C', marginBottom: 4 },
-  aiText: { color: '#174C3C' },
-
-  navbar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    flexDirection: 'row',
+  tasksTitle: { fontSize: 20, fontWeight: '700', color: '#0F4F3C', marginBottom: 12 },
+  taskItem: { fontSize: 16, color: '#174C3C', marginBottom: 12, lineHeight: 22 },
+  
+  checkBtn: {
+    backgroundColor: '#7BC79B',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
     alignItems: 'center',
-    justifyContent: 'space-around',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 8,
-    paddingHorizontal: 16,
+    alignSelf: 'flex-start',
+    marginTop: 5
   },
-  navBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' },
-  navIcon: { width: 40, height: 40 },
+  checkBtnText: { 
+    color: '#fff', 
+    fontWeight: 'bold',
+    fontSize: 16
+  },
+  doneText: { 
+    marginTop: 8, 
+    color: '#2D6A4F', 
+    fontStyle: 'italic',
+    fontWeight: '600',
+    fontSize: 16
+  },
+  aiText: { 
+    color: '#666', 
+    fontStyle: 'italic',
+    fontSize: 14
+  },
+  
+  infoCard: {
+    width: '92%',
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  infoLabel: { fontSize: 16, color: '#2F6B55' },
+  infoValue: { fontSize: 16, fontWeight: 'bold', color: '#0F4F3C' }
 });

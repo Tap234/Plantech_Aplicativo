@@ -129,13 +129,16 @@ const styles = StyleSheet.create({
     width: '92%',
     paddingBottom: 16,
   },
+  // ESTILO ADICIONADO PARA O TOUCHABLEOPACITY
+  cardTouchable: {
+    marginBottom: 16,
+  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 14,
-    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
