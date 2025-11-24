@@ -32,3 +32,13 @@ build/
 ### VS Code ###
 .vscode/
 .env
+.env*.local
+
+# Lock files
+package-lock.json
+
+# IDE Additional
+*.swp
+*.swo
+*~
+.DS_Store

@@ -42,3 +42,13 @@ app-example
 /ios
 /android
 /node_modules
+
+# Lock files
+package-lock.json
+yarn.lock
+
+# IDE Additional
+*.swp
+*.swo
+*~
+.DS_Store
