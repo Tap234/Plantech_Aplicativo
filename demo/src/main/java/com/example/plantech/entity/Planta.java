@@ -29,6 +29,8 @@ public class Planta {
     private String fotoUrl;
     private Double latitude;
     private Double longitude;
+    private String especieIdentificada;
+    private Double probabilidadeIdentificacao;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -82,4 +84,10 @@ public class Planta {
     public void setLongitude(Double longitude) {
         this.longitude = longitude;
     }
+
+    public String getEspecieIdentificada() { return especieIdentificada; }
+    public void setEspecieIdentificada(String especieIdentificada) { this.especieIdentificada = especieIdentificada; }
+
+    public Double getProbabilidadeIdentificacao() { return probabilidadeIdentificacao; }
+    public void setProbabilidadeIdentificacao(Double probabilidadeIdentificacao) { this.probabilidadeIdentificacao = probabilidadeIdentificacao; }
 }

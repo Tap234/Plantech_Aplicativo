@@ -1,8 +1,6 @@
 package com.example.plantech.controller;
-
 import java.util.List;
 import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,18 +14,19 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.example.plantech.dto.LocalizacaoRequestDTO;
 import com.example.plantech.dto.PlantaRequestDTO;
 import java.time.LocalDate;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.plantech.service.FileStorageService;
-
 import com.example.plantech.entity.Planta;
 import com.example.plantech.entity.User;
 import com.example.plantech.repository.PlantaRepository;
 import com.example.plantech.repository.UserRepository;
+import com.example.plantech.service.PlantNetService;
+import com.example.plantech.dto.PlantNetResponse;
+import java.nio.file.Path;
 
 @RestController
 @RequestMapping("/api/plantas")
@@ -41,6 +40,9 @@ public class PlantaController {
 
     @Autowired
     private FileStorageService fileStorageService;
+
+    @Autowired
+    private PlantNetService plantNetService;
 
     @PostMapping
     public ResponseEntity<Planta> criarPlanta(@RequestBody PlantaRequestDTO plantaDTO, Authentication authentication) {
@@ -163,8 +165,24 @@ public class PlantaController {
 
         String filename = fileStorageService.save(file);
         planta.setFotoUrl(filename);
-        Planta plantaAtualizada = plantaRepository.save(planta);
+        try {
+            Path arquivoPath = fileStorageService.load(filename);
+            PlantNetResponse respostaIA = plantNetService.identificarPlanta(arquivoPath);
 
+            if (respostaIA != null && respostaIA.getResults() != null && !respostaIA.getResults().isEmpty()) {
+                PlantNetResponse.Result topResult = respostaIA.getResults().get(0);
+                
+                planta.setEspecieIdentificada(topResult.getSpecies().getScientificNameWithoutAuthor());
+                planta.setProbabilidadeIdentificacao(topResult.getScore());
+                
+                if (topResult.getSpecies().getCommonNames() != null && !topResult.getSpecies().getCommonNames().isEmpty()) {
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Erro ao identificar planta: " + e.getMessage());
+        }
+
+        Planta plantaAtualizada = plantaRepository.save(planta);
         return ResponseEntity.ok(plantaAtualizada);
     }
 

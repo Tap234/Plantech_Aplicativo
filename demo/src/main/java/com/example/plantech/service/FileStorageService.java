@@ -41,4 +41,8 @@ public class FileStorageService {
             throw new RuntimeException("Não foi possível armazenar o arquivo. Erro: " + e.getMessage());
         }
     }
+
+    public Path load(String filename) {
+        return root.resolve(filename);
+    }
 }

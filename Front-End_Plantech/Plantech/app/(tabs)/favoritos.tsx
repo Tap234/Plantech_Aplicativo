@@ -1,28 +1,53 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image as RNImage,
-  Platform,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import api from '../../api';
 
-const FAVORITES = [
-  { id: '1', name: 'Monstera' },
-  { id: '2', name: 'Fiddle Leaf Fig' },
-  { id: '3', name: 'Snake Plant' },
-  { id: '4', name: 'Spider Plant' },
-];
+type PlantaItem = {
+  id: number | string;
+  nome: string;
+  fotoUrl?: string | null;
+};
 
 export default function FavoritosScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const renderItem = ({ item }: { item: { id: string; name: string } }) => (
+  const [plantas, setPlantas] = useState<PlantaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPlantas();
+  }, []);
+
+  async function loadPlantas() {
+    try {
+      setLoading(true);
+      const res = await api.get('/plantas');
+      setPlantas(res.data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar plantas:', error);
+      // Se houver erro de autenticação, redireciona para login
+      if (error.response?.status === 401) {
+        router.replace('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const uploadsBase = api.defaults.baseURL ? api.defaults.baseURL.replace('/api', '/uploads') : 'http://localhost:8080/uploads';
+
+  const renderItem = ({ item }: { item: PlantaItem }) => (
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={() => router.push(`/planta/${item.id}`)}
@@ -30,9 +55,13 @@ export default function FavoritosScreen() {
     >
       <View style={styles.card}>
         <View style={styles.thumb}>
-          <Text style={styles.thumbText}>{item.name.charAt(0)}</Text>
+          {item.fotoUrl ? (
+            <RNImage source={{ uri: `${uploadsBase}/${item.fotoUrl}` }} style={{ width: 64, height: 64, borderRadius: 12 }} />
+          ) : (
+            <Text style={styles.thumbText}>{item.nome?.charAt(0)}</Text>
+          )}
         </View>
-        <Text style={styles.cardTitle}>{item.name}</Text>
+        <Text style={styles.cardTitle}>{item.nome}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -41,13 +70,17 @@ export default function FavoritosScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Favoritos</Text>
 
-      <FlatList
-        data={FAVORITES}
-        keyExtractor={(i) => i.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <ActivityIndicator size="large" color="#0F4F3C" />
+      ) : (
+        <FlatList
+          data={plantas}
+          keyExtractor={(i) => String(i.id)}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <View
         style={[
