@@ -8,6 +8,7 @@ import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.nio.file.Path;
 
@@ -20,7 +21,23 @@ public class PlantNetService {
     private final WebClient webClient;
 
     public PlantNetService(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.baseUrl("https://my-api.plantnet.org").build();
+        try {
+            // Configuração para IGNORAR ERROS DE SSL (Trust All)
+            io.netty.handler.ssl.SslContext sslContext = io.netty.handler.ssl.SslContextBuilder
+                    .forClient()
+                    .trustManager(io.netty.handler.ssl.util.InsecureTrustManagerFactory.INSTANCE)
+                    .build();
+
+            org.springframework.http.client.reactive.ReactorClientHttpConnector httpClient = new org.springframework.http.client.reactive.ReactorClientHttpConnector(
+                    reactor.netty.http.client.HttpClient.create().secure(t -> t.sslContext(sslContext)));
+
+            this.webClient = webClientBuilder
+                    .clientConnector(httpClient)
+                    .baseUrl("https://my-api.plantnet.org")
+                    .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao configurar SSL inseguro", e);
+        }
     }
 
     public PlantNetResponse identificarPlanta(Path caminhoArquivo) {
@@ -38,9 +55,14 @@ public class PlantNetService {
                     .retrieve()
                     .bodyToMono(PlantNetResponse.class)
                     .block();
-        } catch (Exception e) {
+        } catch (WebClientResponseException e) {
+            System.err.println("Erro API PlantNet: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
             e.printStackTrace();
-            return null; 
+            return null;
+        } catch (Exception e) {
+            System.err.println("Erro genérico PlantNet: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
     }
 }

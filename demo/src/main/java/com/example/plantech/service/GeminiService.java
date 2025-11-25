@@ -21,20 +21,22 @@ public class GeminiService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    private final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    private final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
 
     // --- MÉTODOS PÚBLICOS (API da Classe) ---
 
     /**
      * Analisa uma planta nova (Cadastro) para dar o primeiro diagnóstico.
      */
-    public JSONObject analisarPlanta(Path caminhoImagem, String especie, String clima, List<PlantaHistorico> historicoRecente) {
+    public JSONObject analisarPlanta(Path caminhoImagem, String especie, String clima,
+            List<PlantaHistorico> historicoRecente) {
         // 1. Prepara o Contexto Histórico
         StringBuilder contextoHistorico = new StringBuilder();
         if (historicoRecente != null && !historicoRecente.isEmpty()) {
             contextoHistorico.append("Histórico recente da planta:\n");
             for (PlantaHistorico h : historicoRecente) {
-                contextoHistorico.append("- Em ").append(h.getDataRegistro()).append(": ").append(h.getDiagnosticoIA()).append("\n");
+                contextoHistorico.append("- Em ").append(h.getDataRegistro()).append(": ").append(h.getDiagnosticoIA())
+                        .append("\n");
             }
         } else {
             contextoHistorico.append("Sem histórico anterior.");
@@ -42,13 +44,12 @@ public class GeminiService {
 
         // 2. Monta o Prompt Complexo para Identificação/Primeira Análise
         String prompt = String.format(
-            "Atue como um botânico sênior. Analise esta imagem de uma planta identificada como '%s'. " +
-            "Contexto local: O clima agora é '%s'.\n%s\n" +
-            "Tarefa: Identifique visualmente se há doenças, pragas ou deficiência de nutrientes. " +
-            "Retorne APENAS um JSON com este formato (sem markdown): " +
-            "{ \"saudavel\": boolean, \"diagnostico\": \"resumo do problema visual\", \"tratamento\": \"passos práticos\", \"dica_clima\": \"dica baseada no clima atual\" }",
-            especie, clima, contextoHistorico.toString()
-        );
+                "Atue como um botânico sênior. Analise esta imagem de uma planta identificada como '%s'. " +
+                        "Contexto local: O clima agora é '%s'.\n%s\n" +
+                        "Tarefa: Identifique visualmente se há doenças, pragas ou deficiência de nutrientes. " +
+                        "Retorne APENAS um JSON com este formato (sem markdown): " +
+                        "{ \"saudavel\": boolean, \"diagnostico\": \"resumo do problema visual\", \"tratamento\": \"passos práticos\", \"dica_clima\": \"dica baseada no clima atual\" }",
+                especie, clima, contextoHistorico.toString());
 
         return consultarGeminiImagem(caminhoImagem, prompt);
     }
@@ -59,10 +60,10 @@ public class GeminiService {
      */
     public JSONObject analisarSaude(Path caminhoImagem, String promptPersonalizado) {
         // Se não vier prompt personalizado, usa um padrão de saúde
-        String prompt = (promptPersonalizado != null && !promptPersonalizado.isEmpty()) 
-            ? promptPersonalizado 
-            : "Analise esta imagem e identifique sinais de pragas, doenças ou deficiências. Retorne APENAS JSON: { \"saudavel\": boolean, \"diagnostico\": \"...\" }";
-            
+        String prompt = (promptPersonalizado != null && !promptPersonalizado.isEmpty())
+                ? promptPersonalizado
+                : "Analise esta imagem e identifique sinais de pragas, doenças ou deficiências. Retorne APENAS JSON: { \"saudavel\": boolean, \"diagnostico\": \"...\" }";
+
         return consultarGeminiImagem(caminhoImagem, prompt);
     }
 
@@ -88,7 +89,8 @@ public class GeminiService {
             String resposta = consultarGeminiTexto(prompt);
             // Tenta extrair apenas números da resposta
             String numero = resposta.replaceAll("[^0-9]", "");
-            if (numero.isEmpty()) return 7; // Fallback seguro
+            if (numero.isEmpty())
+                return 7; // Fallback seguro
             return Integer.parseInt(numero);
         } catch (Exception e) {
             return 7; // Fallback seguro em caso de erro
@@ -130,14 +132,14 @@ public class GeminiService {
                             .put("data", encodedImage));
 
             JSONObject textPart = new JSONObject().put("text", prompt);
-            
+
             JSONArray parts = new JSONArray().put(textPart).put(imagePart);
             JSONObject requestBody = new JSONObject()
                     .put("contents", new JSONArray().put(new JSONObject().put("parts", parts)));
 
             // 3. Envia e Trata Resposta
             String rawResponse = enviarRequisicao(requestBody);
-            
+
             // Limpa Markdown (```json ... ```) se a IA colocar
             String cleanJson = rawResponse.replace("```json", "").replace("```", "").trim();
             return new JSONObject(cleanJson);
@@ -145,7 +147,8 @@ public class GeminiService {
         } catch (Exception e) {
             e.printStackTrace();
             // Fallback JSON em caso de erro
-            return new JSONObject().put("saudavel", true).put("diagnostico", "Erro ao processar imagem").put("tratamento", "Tente novamente");
+            return new JSONObject().put("saudavel", true).put("diagnostico", "Erro ao processar imagem")
+                    .put("tratamento", "Tente novamente");
         }
     }
 
@@ -156,12 +159,12 @@ public class GeminiService {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        
+
         HttpEntity<String> request = new HttpEntity<>(requestBody.toString(), headers);
         String response = restTemplate.postForObject(API_URL + "?key=" + apiKey, request, String.class);
-        
+
         JSONObject jsonResponse = new JSONObject(response);
-        
+
         // Navega no JSON de resposta do Gemini para pegar o texto
         return jsonResponse.getJSONArray("candidates")
                 .getJSONObject(0).getJSONObject("content").getJSONArray("parts")

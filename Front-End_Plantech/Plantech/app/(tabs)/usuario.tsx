@@ -35,10 +35,7 @@ export default function UsuarioScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => alert('Excluir plantas favorited - placeholder')}>
-          <Text style={styles.cardText}>Excluir plantas favoritas</Text>
-          <Text style={styles.icon}>🗑️</Text>
-        </TouchableOpacity>
+
 
         <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => alert('Atualizar cadastro - placeholder')}>
           <Text style={styles.cardText}>Atualizações cadastrais</Text>
@@ -51,18 +48,20 @@ export default function UsuarioScreen() {
             // Confirmação simples
             Alert.alert('Confirmar', 'Deseja sair da conta?', [
               { text: 'Cancelar', style: 'cancel' },
-              { text: 'Sair', style: 'destructive', onPress: async () => {
-                try {
-                  if (Platform.OS === 'web') {
-                    localStorage.removeItem('userToken');
-                  } else {
-                    await SecureStore.deleteItemAsync('userToken');
+              {
+                text: 'Sair', style: 'destructive', onPress: async () => {
+                  try {
+                    if (Platform.OS === 'web') {
+                      localStorage.removeItem('userToken');
+                    } else {
+                      await SecureStore.deleteItemAsync('userToken');
+                    }
+                  } catch (e) {
+                    // ignora
                   }
-                } catch (e) {
-                  // ignora
+                  router.replace('/login');
                 }
-                router.replace('/login');
-              } }
+              }
             ]);
           }}
         >

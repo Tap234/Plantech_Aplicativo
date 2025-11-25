@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
 @Entity
-@Table(name="plantas")
+@Table(name = "plantas")
 public class Planta {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,11 +36,11 @@ public class Planta {
     private LocalDate proximaRega;
     @Column(columnDefinition = "TEXT")
     private String recomendacaoDiaria;
-    
+
     private boolean acaoDiariaRealizada;
-    
+
     private LocalDateTime dataUltimaFotoControle;
-    
+
     private String preferenciaSol;
     private String preferenciaUmidade;
 
@@ -49,14 +49,50 @@ public class Planta {
     @JsonBackReference
     private User user;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public String getNome() { return nome; }
-    public void setNome(String nome) { this.nome = nome; }
-    public String getDescricao() { return descricao; }
-    public void setDescricao(String descricao) { this.descricao = descricao; }
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
+    @jakarta.persistence.OneToMany(mappedBy = "planta", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private java.util.List<PlantaHistorico> historico = new java.util.ArrayList<>();
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
+    public String getDescricao() {
+        return descricao;
+    }
+
+    public void setDescricao(String descricao) {
+        this.descricao = descricao;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public java.util.List<PlantaHistorico> getHistorico() {
+        return historico;
+    }
+
+    public void setHistorico(java.util.List<PlantaHistorico> historico) {
+        this.historico = historico;
+    }
+
     public Integer getFrequenciaRegaDias() {
         return frequenciaRegaDias;
     }
@@ -72,7 +108,7 @@ public class Planta {
     public void setDataUltimaRega(LocalDate dataUltimaRega) {
         this.dataUltimaRega = dataUltimaRega;
     }
-    
+
     public String getFotoUrl() {
         return fotoUrl;
     }
@@ -97,28 +133,67 @@ public class Planta {
         this.longitude = longitude;
     }
 
-    public String getEspecieIdentificada() { return especieIdentificada; }
-    public void setEspecieIdentificada(String especieIdentificada) { this.especieIdentificada = especieIdentificada; }
+    public String getEspecieIdentificada() {
+        return especieIdentificada;
+    }
 
-    public Double getProbabilidadeIdentificacao() { return probabilidadeIdentificacao; }
-    public void setProbabilidadeIdentificacao(Double probabilidadeIdentificacao) { this.probabilidadeIdentificacao = probabilidadeIdentificacao; }
+    public void setEspecieIdentificada(String especieIdentificada) {
+        this.especieIdentificada = especieIdentificada;
+    }
 
-    public LocalDate getProximaRega() { return proximaRega; }
-    public void setProximaRega(LocalDate proximaRega) { this.proximaRega = proximaRega; }
+    public Double getProbabilidadeIdentificacao() {
+        return probabilidadeIdentificacao;
+    }
 
-    public String getRecomendacaoDiaria() { return recomendacaoDiaria; }
-    public void setRecomendacaoDiaria(String recomendacaoDiaria) { this.recomendacaoDiaria = recomendacaoDiaria; }
+    public void setProbabilidadeIdentificacao(Double probabilidadeIdentificacao) {
+        this.probabilidadeIdentificacao = probabilidadeIdentificacao;
+    }
 
-    public boolean isAcaoDiariaRealizada() { return acaoDiariaRealizada; }
-    public void setAcaoDiariaRealizada(boolean acaoDiariaRealizada) { this.acaoDiariaRealizada = acaoDiariaRealizada; }
+    public LocalDate getProximaRega() {
+        return proximaRega;
+    }
 
-    public LocalDateTime getDataUltimaFotoControle() { return dataUltimaFotoControle; }
-    public void setDataUltimaFotoControle(LocalDateTime dataUltimaFotoControle) { this.dataUltimaFotoControle = dataUltimaFotoControle; }
+    public void setProximaRega(LocalDate proximaRega) {
+        this.proximaRega = proximaRega;
+    }
 
-    public String getPreferenciaSol() { return preferenciaSol; }
-    public void setPreferenciaSol(String preferenciaSol) { this.preferenciaSol = preferenciaSol; }
+    public String getRecomendacaoDiaria() {
+        return recomendacaoDiaria;
+    }
 
-    public String getPreferenciaUmidade() { return preferenciaUmidade; }
-    public void setPreferenciaUmidade(String preferenciaUmidade) { this.preferenciaUmidade = preferenciaUmidade; }
+    public void setRecomendacaoDiaria(String recomendacaoDiaria) {
+        this.recomendacaoDiaria = recomendacaoDiaria;
+    }
+
+    public boolean isAcaoDiariaRealizada() {
+        return acaoDiariaRealizada;
+    }
+
+    public void setAcaoDiariaRealizada(boolean acaoDiariaRealizada) {
+        this.acaoDiariaRealizada = acaoDiariaRealizada;
+    }
+
+    public LocalDateTime getDataUltimaFotoControle() {
+        return dataUltimaFotoControle;
+    }
+
+    public void setDataUltimaFotoControle(LocalDateTime dataUltimaFotoControle) {
+        this.dataUltimaFotoControle = dataUltimaFotoControle;
+    }
+
+    public String getPreferenciaSol() {
+        return preferenciaSol;
+    }
+
+    public void setPreferenciaSol(String preferenciaSol) {
+        this.preferenciaSol = preferenciaSol;
+    }
+
+    public String getPreferenciaUmidade() {
+        return preferenciaUmidade;
+    }
+
+    public void setPreferenciaUmidade(String preferenciaUmidade) {
+        this.preferenciaUmidade = preferenciaUmidade;
+    }
 }
-

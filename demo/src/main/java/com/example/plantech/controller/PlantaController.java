@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import com.example.plantech.dto.LocalizacaoRequestDTO;
 import com.example.plantech.dto.PlantaRequestDTO;
 import java.time.LocalDate;
-import java.time.LocalDateTime; 
+import java.time.LocalDateTime;
 
 import org.springframework.web.multipart.MultipartFile;
 import com.example.plantech.service.FileStorageService;
@@ -51,68 +51,70 @@ public class PlantaController {
     // --- 1. MÉTODOS DE MONITORAMENTO (NOVOS) ---
 
     @PostMapping("/{id}/foto-controle")
-    public ResponseEntity<PlantaHistorico> enviarFotoControle(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+    public ResponseEntity<PlantaHistorico> enviarFotoControle(@PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
         Planta planta = plantaOpt.get();
 
         String filename = fileStorageService.save(file);
-        
-        // Corrigido: carrega o caminho correto do arquivo
-        Path arquivoPath = fileStorageService.load(filename); 
 
-        String prompt = "Analise esta imagem atual da planta " + planta.getNome() + 
-                        " (Espécie: " + planta.getEspecieIdentificada() + "). " +
-                        "Identifique apenas problemas de saúde (pragas, fungos, seca).";
-        
-        // Corrigido: passa a variável arquivoPath
+        Path arquivoPath = fileStorageService.load(filename);
+
+        String prompt = "Analise esta imagem atual da planta " + planta.getNome() +
+                " (Espécie: " + planta.getEspecieIdentificada() + "). " +
+                "Identifique apenas problemas de saúde (pragas, fungos, seca).";
+
         JSONObject analise = geminiService.analisarSaude(arquivoPath, prompt);
 
         PlantaHistorico historico = new PlantaHistorico();
         historico.setPlanta(planta);
-        if(analise.has("diagnostico")) historico.setDiagnosticoIA(analise.getString("diagnostico"));
+        if (analise.has("diagnostico"))
+            historico.setDiagnosticoIA(analise.getString("diagnostico"));
         historico.setFotoUrl(filename);
         historico.setDataRegistro(LocalDateTime.now());
-        
+
         planta.setDataUltimaFotoControle(LocalDateTime.now());
         plantaRepository.save(planta);
-        
+
         return ResponseEntity.ok(historicoRepository.save(historico));
     }
 
     @PostMapping("/{id}/regar")
-    public ResponseEntity<Planta> registrarRega(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+    public ResponseEntity<Planta> registrarRega(@PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
         Planta planta = plantaOpt.get();
 
-        LocalDate dataRega = (body != null && body.containsKey("data")) 
-            ? LocalDate.parse(body.get("data")) 
-            : LocalDate.now();
+        LocalDate dataRega = (body != null && body.containsKey("data"))
+                ? LocalDate.parse(body.get("data"))
+                : LocalDate.now();
 
         planta.setDataUltimaRega(dataRega);
 
-        // Corrigido: Busca histórico real do banco
         List<PlantaHistorico> ultimosRegistros = historicoRepository.findTop3ByPlantaIdOrderByDataRegistroDesc(id);
         StringBuilder sb = new StringBuilder();
-        for(PlantaHistorico h : ultimosRegistros) {
-            sb.append("Data: ").append(h.getDataRegistro()).append(", Diagnóstico: ").append(h.getDiagnosticoIA()).append("; ");
+        for (PlantaHistorico h : ultimosRegistros) {
+            sb.append("Data: ").append(h.getDataRegistro()).append(", Diagnóstico: ").append(h.getDiagnosticoIA())
+                    .append("; ");
         }
         String historicoCuidados = sb.toString();
 
         String prompt = "O usuário regou a " + planta.getNome() + " em " + dataRega + ". " +
-                        "O intervalo anterior era " + planta.getFrequenciaRegaDias() + " dias. " +
-                        "Histórico recente: " + historicoCuidados + ". Devo manter ou alterar a frequência? " +
-                        "Responda apenas o número de dias.";
-                        
+                "O intervalo anterior era " + planta.getFrequenciaRegaDias() + " dias. " +
+                "Histórico recente: " + historicoCuidados + ". Devo manter ou alterar a frequência? " +
+                "Responda apenas o número de dias.";
+
         int novosDias = geminiService.recalcularFrequencia(prompt);
         planta.setFrequenciaRegaDias(novosDias);
-    
-        // Calcula próxima rega se dias for > 0
+
         if (novosDias > 0) {
             planta.setProximaRega(dataRega.plusDays(novosDias));
         }
-    
+
         plantaRepository.save(planta);
         return ResponseEntity.ok(planta);
     }
@@ -120,66 +122,82 @@ public class PlantaController {
     @PostMapping("/{id}/check-diario")
     public ResponseEntity<Void> confirmarAcao(@PathVariable Long id) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
         Planta p = plantaOpt.get();
-        
+
         p.setAcaoDiariaRealizada(true);
-        
+
         PlantaHistorico log = new PlantaHistorico();
         log.setPlanta(p);
         log.setDataRegistro(LocalDateTime.now());
         log.setRecomendacaoCurativa("Tarefa diária realizada: " + p.getRecomendacaoDiaria());
-        
+
         plantaRepository.save(p);
         historicoRepository.save(log);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{id}/foto")
-    public ResponseEntity<Planta> uploadFotoPlanta(@PathVariable Long id, @RequestParam("file") MultipartFile file, Authentication authentication) {
+    public ResponseEntity<?> uploadFotoPlanta(@PathVariable Long id, @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
 
         Planta planta = plantaOpt.get();
         String filename = fileStorageService.save(file);
         planta.setFotoUrl(filename);
-        
+
         try {
             Path arquivoPath = fileStorageService.load(filename);
-            
+
             if (planta.getEspecieIdentificada() == null || planta.getEspecieIdentificada().isEmpty()) {
                 PlantNetResponse respostaIA = plantNetService.identificarPlanta(arquivoPath);
-                if (respostaIA != null && respostaIA.getResults() != null && !respostaIA.getResults().isEmpty()) {
-                    planta.setEspecieIdentificada(respostaIA.getResults().get(0).getSpecies().getScientificNameWithoutAuthor());
-                    planta.setProbabilidadeIdentificacao(respostaIA.getResults().get(0).getScore());
+
+                // VERIFICAÇÃO DE SUCESSO DA IDENTIFICAÇÃO
+                if (respostaIA == null || respostaIA.getResults() == null || respostaIA.getResults().isEmpty()) {
+                    plantaRepository.delete(planta);
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body(Map.of("error",
+                                    "Não foi possível identificar nenhuma planta na imagem. Tente novamente."));
                 }
-            }
-            
-            String climaAtual = "Localização não definida";
-            if (planta.getLatitude() != null && planta.getLongitude() != null) {
-                 climaAtual = weatherService.obterClimaAtual(planta.getLatitude(), planta.getLongitude());
+
+                planta.setEspecieIdentificada(
+                        respostaIA.getResults().get(0).getSpecies().getScientificNameWithoutAuthor());
+                planta.setProbabilidadeIdentificacao(respostaIA.getResults().get(0).getScore());
             }
 
-            List<PlantaHistorico> historicoRecente = historicoRepository.findTop3ByPlantaIdOrderByDataRegistroDesc(planta.getId());
-            JSONObject analiseGemini = geminiService.analisarPlanta(arquivoPath, planta.getEspecieIdentificada(), climaAtual, historicoRecente);
-            
+            String climaAtual = "Localização não definida";
+            if (planta.getLatitude() != null && planta.getLongitude() != null) {
+                climaAtual = weatherService.obterClimaAtual(planta.getLatitude(), planta.getLongitude());
+            }
+
+            List<PlantaHistorico> historicoRecente = historicoRepository
+                    .findTop3ByPlantaIdOrderByDataRegistroDesc(planta.getId());
+            JSONObject analiseGemini = geminiService.analisarPlanta(arquivoPath, planta.getEspecieIdentificada(),
+                    climaAtual, historicoRecente);
+
             PlantaHistorico novoRegistro = new PlantaHistorico();
             novoRegistro.setPlanta(planta);
             novoRegistro.setFotoUrl(filename);
             novoRegistro.setDataRegistro(LocalDateTime.now());
             novoRegistro.setCondicaoTempo(climaAtual);
-            
-            if (analiseGemini.has("diagnostico")) novoRegistro.setDiagnosticoIA(analiseGemini.getString("diagnostico"));
+
+            if (analiseGemini.has("diagnostico"))
+                novoRegistro.setDiagnosticoIA(analiseGemini.getString("diagnostico"));
             if (analiseGemini.has("tratamento")) {
                 String rec = analiseGemini.getString("tratamento");
-                if (analiseGemini.has("dica_clima")) rec += "\n💡 Dica: " + analiseGemini.getString("dica_clima");
+                if (analiseGemini.has("dica_clima"))
+                    rec += "\n💡 Dica: " + analiseGemini.getString("dica_clima");
                 novoRegistro.setRecomendacaoCurativa(rec);
             }
-            
+
             historicoRepository.save(novoRegistro);
 
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
 
         return ResponseEntity.ok(plantaRepository.save(planta));
@@ -191,12 +209,12 @@ public class PlantaController {
     public ResponseEntity<Planta> criarPlanta(@RequestBody PlantaRequestDTO plantaDTO, Authentication authentication) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         User currentUser = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
-        
+
         Planta novaPlanta = new Planta();
         novaPlanta.setNome(plantaDTO.getNome());
         novaPlanta.setDescricao(plantaDTO.getDescricao());
         novaPlanta.setUser(currentUser);
-        
+
         return ResponseEntity.status(HttpStatus.CREATED).body(plantaRepository.save(novaPlanta));
     }
 
@@ -210,20 +228,23 @@ public class PlantaController {
     @GetMapping("/{id}")
     public ResponseEntity<Planta> buscarPlantaPorId(@PathVariable Long id, Authentication authentication) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
         return ResponseEntity.ok(plantaOpt.get());
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Planta> atualizarPlanta(@PathVariable Long id, @RequestBody Planta plantaDetalhes, Authentication authentication) {
+    public ResponseEntity<Planta> atualizarPlanta(@PathVariable Long id, @RequestBody Planta plantaDetalhes,
+            Authentication authentication) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
-        
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
+
         Planta plantaExistente = plantaOpt.get();
         plantaExistente.setNome(plantaDetalhes.getNome());
         plantaExistente.setDescricao(plantaDetalhes.getDescricao());
         plantaExistente.setFrequenciaRegaDias(plantaDetalhes.getFrequenciaRegaDias());
-        
+
         return ResponseEntity.ok(plantaRepository.save(plantaExistente));
     }
 
@@ -238,14 +259,16 @@ public class PlantaController {
     }
 
     @PutMapping("/{id}/localizacao")
-    public ResponseEntity<Planta> atualizarLocalizacaoPlanta(@PathVariable Long id, @RequestBody LocalizacaoRequestDTO localizacao, Authentication authentication) {
+    public ResponseEntity<Planta> atualizarLocalizacaoPlanta(@PathVariable Long id,
+            @RequestBody LocalizacaoRequestDTO localizacao, Authentication authentication) {
         Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty()) return ResponseEntity.notFound().build();
-        
+        if (plantaOpt.isEmpty())
+            return ResponseEntity.notFound().build();
+
         Planta planta = plantaOpt.get();
         planta.setLatitude(localizacao.getLatitude());
         planta.setLongitude(localizacao.getLongitude());
-        
+
         return ResponseEntity.ok(plantaRepository.save(planta));
     }
 }

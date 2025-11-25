@@ -7,11 +7,13 @@ import {
   Image as RNImage,
   FlatList,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api';
 import { useFocusEffect } from '@react-navigation/native';
+import { Feather } from '@expo/vector-icons';
 
 type PlantaItem = {
   id: number | string;
@@ -52,15 +54,39 @@ export default function FavoritosScreen() {
     }
   }
 
+  const handleDelete = (id: number | string) => {
+    Alert.alert(
+      'Excluir Planta',
+      'Tem certeza que deseja excluir esta planta dos seus favoritos?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/plantas/${id}`);
+              // Remove da lista localmente para feedback instantâneo
+              setPlantas((prev) => prev.filter((p) => p.id !== id));
+            } catch (error) {
+              console.error('Erro ao excluir planta:', error);
+              Alert.alert('Erro', 'Não foi possível excluir a planta.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const uploadsBase = api.defaults.baseURL ? api.defaults.baseURL.replace('/api', '/uploads') : 'http://localhost:8080/uploads';
 
   const renderItem = ({ item }: { item: PlantaItem }) => (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => router.push(`/planta/${item.id}`)}
-      style={styles.cardTouchable}
-    >
-      <View style={styles.card}>
+    <View style={styles.card}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => router.push(`/planta/${item.id}`)}
+        style={styles.cardContent}
+      >
         <View style={styles.thumb}>
           {(() => {
             const fotoField = item.fotoUrl || (item as any).foto || (item as any).imagemUrl || (item as any).imagem || (item as any).url || null;
@@ -72,8 +98,16 @@ export default function FavoritosScreen() {
           })()}
         </View>
         <Text style={styles.cardTitle}>{item.nome}</Text>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.deleteBtn}
+        onPress={() => handleDelete(item.id)}
+        activeOpacity={0.7}
+      >
+        <Feather name="trash-2" size={24} color="#A0A0A0" />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -104,7 +138,7 @@ export default function FavoritosScreen() {
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/favoritos')}>
           <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/login')}>
+        <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/usuario')}>
           <RNImage source={require('../../assets/images/Icone_Usuario.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
       </View>
@@ -127,23 +161,27 @@ const styles = StyleSheet.create({
   },
   list: {
     width: '92%',
-    paddingBottom: 16,
-  },
-  // ESTILO ADICIONADO PARA O TOUCHABLEOPACITY
-  cardTouchable: {
-    marginBottom: 16,
+    paddingBottom: 100,
   },
   card: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
+    marginBottom: 16,
     padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 4,
+  },
+  cardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   thumb: {
     width: 64,
@@ -163,6 +201,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#0F4F3C',
     fontWeight: '600',
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  deleteBtn: {
+    padding: 12,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navbar: {
     position: 'absolute',
