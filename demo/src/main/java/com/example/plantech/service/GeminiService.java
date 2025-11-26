@@ -99,6 +99,22 @@ public class GeminiService {
         }
     }
 
+    /**
+     * Gera uma recomendação climática específica.
+     */
+    public String gerarRecomendacaoClimatica(String especie, String dadosClimaticos, String preferenciaSol,
+            String preferenciaUmidade) {
+        String prompt = String.format(
+                "Atue como um botânico. A planta é '%s'.\n" +
+                        "O clima atual local é: %s.\n" +
+                        "Preferências da planta: Sol: %s, Umidade: %s.\n" +
+                        "Com base nisso, qual a recomendação IMEDIATA? (Ex: Recolher para dentro, regar agora, proteger do vento, deixar no sol).\n"
+                        +
+                        "Responda em uma única frase curta e direta.",
+                especie, dadosClimaticos, preferenciaSol, preferenciaUmidade);
+        return consultarGeminiTexto(prompt);
+    }
+
     // --- MÉTODOS PRIVADOS (Lógica Reaproveitável) ---
 
     /**

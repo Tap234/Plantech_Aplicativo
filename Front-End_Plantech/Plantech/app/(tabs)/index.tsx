@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform, Image, Modal, Alert, ActivityIndicator } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, Modal, ActivityIndicator, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image as RNImage } from 'react-native';
 import api from '../../api';
-// botão de câmera é invisível — não precisa de ícone
+import * as Location from 'expo-location';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -56,12 +57,39 @@ export default function HomeScreen() {
   const identifyImage = async (uri?: string) => {
     const localUri = uri || imageUri;
     if (!localUri) return;
+
+    let plant: any = null;
+
     try {
       setIdentifying(true);
+
+      // 0) Obter localização atual (se permitido)
+      let locationData = null;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          locationData = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude
+          };
+        }
+      } catch (e) {
+        console.warn('Erro ao obter localização:', e);
+      }
+
       // 1) Criar planta temporária para que o backend faça a identificação ao receber a foto
-      let plant: any = null;
       const createRes = await api.post('/plantas', { nome: 'Identificando...', descricao: '' });
       plant = createRes.data;
+
+      // 1.5) Se tiver localização, atualizar a planta
+      if (locationData && plant && plant.id) {
+        try {
+          await api.put(`/plantas/${plant.id}/localizacao`, locationData);
+        } catch (locErr) {
+          console.warn('Falha ao enviar localização:', locErr);
+        }
+      }
 
       // 2) Enviar foto para /plantas/{id}/foto (o backend já chama PlantNet e atualiza a planta)
       const fd = new FormData();
@@ -117,97 +145,11 @@ export default function HomeScreen() {
     }
   };
 
-  // Salva a planta retornada pela identificação como nova planta do usuário
-  const saveAsPlant = async () => {
-    if (!identifyResult) {
-      Alert.alert('Nada a salvar', 'Faça a identificação antes de salvar.');
-      return;
-    }
-
-    try {
-      // Se já temos um resultado com id, garantimos que a foto do usuário foi enviada
-      if (identifyResult && identifyResult.id) {
-        // se a planta já possui foto no backend, apenas navegar; caso contrário, envia a foto e pega a resposta
-        const hasFoto = identifyResult.fotoUrl || identifyResult.foto || identifyResult.imagemUrl || identifyResult.url;
-        if (!hasFoto && imageUri) {
-          try {
-            const fd = new FormData();
-            const filename = imageUri.split('/').pop() || 'photo.jpg';
-            const match = filename.match(/\.([0-9a-z]+)$/i);
-            const type = match ? `image/${match[1]}` : 'image/jpeg';
-            // @ts-ignore
-            fd.append('file', { uri: imageUri, name: filename, type });
-            const uploadRes = await api.post(`/plantas/${identifyResult.id}/foto`, fd);
-            // atualizar identifyResult com a resposta do backend
-            let updated = uploadRes.data;
-            if (updated && !updated.fotoUrl && updated.id) {
-              // tentar buscar a planta atualizada se fotoUrl não veio na resposta
-              try {
-                const fresh = await api.get(`/plantas/${updated.id}`);
-                updated = fresh.data || updated;
-              } catch (e) {
-                // ignora
-              }
-            }
-            if (updated) setIdentifyResult(updated);
-          } catch (e: any) {
-            console.error('Erro ao enviar foto da planta existente:', e);
-            Alert.alert('Erro', 'Não foi possível enviar a foto da planta.');
-            return;
-          }
-        }
-
-        Alert.alert('Adicionado', 'Planta salva nas suas plantas/favoritos.');
-        setModalVisible(false);
-        setImageUri(null);
-        setIdentifyResult(null);
-        router.replace('/favoritos');
-        return;
-      }
-
-      // Caso não exista id (identificação sugerida mas planta não criada), cria planta e anexa foto do usuário
-      const nome = identifyResult.especieIdentificada || identifyResult.species || identifyResult.name || 'Planta identificada';
-      const descricao = identifyResult.descricao || identifyResult.description || '';
-
-      const createRes = await api.post('/plantas', { nome, descricao });
-      let newPlant: any = createRes.data;
-
-      if (imageUri && newPlant && newPlant.id) {
-        try {
-          const fd = new FormData();
-          const filename = imageUri.split('/').pop() || 'photo.jpg';
-          const match = filename.match(/\.([0-9a-z]+)$/i);
-          const type = match ? `image/${match[1]}` : 'image/jpeg';
-          // @ts-ignore
-          fd.append('file', { uri: imageUri, name: filename, type });
-          const uploadRes = await api.post(`/plantas/${newPlant.id}/foto`, fd);
-          // atualiza newPlant com resposta do backend (que seta fotoUrl)
-          let updated = uploadRes.data;
-          if (updated && !updated.fotoUrl && updated.id) {
-            try {
-              const fresh = await api.get(`/plantas/${updated.id}`);
-              updated = fresh.data || updated;
-            } catch (e) {
-              // ignora
-            }
-          }
-          if (updated) newPlant = updated;
-        } catch (e: any) {
-          console.error('Erro ao enviar foto da nova planta:', e);
-          Alert.alert('Erro', 'Não foi possível enviar a foto da planta.');
-          return;
-        }
-      }
-
-      Alert.alert('Salvo', 'Planta adicionada às suas plantas.');
-      setModalVisible(false);
-      setImageUri(null);
-      setIdentifyResult(null);
-      router.replace('/favoritos');
-    } catch (error: any) {
-      console.error('Erro ao salvar planta:', error);
-      Alert.alert('Erro', 'Não foi possível salvar a planta.');
-    }
+  const saveAsPlant = () => {
+    setModalVisible(false);
+    setImageUri(null);
+    setIdentifyResult(null);
+    router.replace('/favoritos');
   };
 
   const handleCameraButton = () => {

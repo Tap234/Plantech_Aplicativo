@@ -218,12 +218,39 @@ public class PlantaController {
 
             historicoRepository.save(novoRegistro);
 
+            // 5. Salva no Banco (Primeira vez para ter ID e dados básicos)
+            Planta plantaSalva = plantaRepository.save(planta);
+
+            // 6. Integração com Clima (Novo)
+            try {
+                if (plantaSalva.getLatitude() != null && plantaSalva.getLongitude() != null) {
+                    System.out.println("--- DEBUG CONTROLLER: Lat=" + plantaSalva.getLatitude() + ", Lon="
+                            + plantaSalva.getLongitude() + " ---");
+                    String dadosClimaticos = weatherService.obterDadosClimaticosDetalhados(plantaSalva.getLatitude(),
+                            plantaSalva.getLongitude());
+                    System.out.println("--- DEBUG CONTROLLER: Dados Climáticos=" + dadosClimaticos + " ---");
+
+                    String recomendacaoClimatica = geminiService.gerarRecomendacaoClimatica(
+                            plantaSalva.getEspecieIdentificada(),
+                            dadosClimaticos,
+                            plantaSalva.getPreferenciaSol(),
+                            plantaSalva.getPreferenciaUmidade());
+                    plantaSalva.setRecomendacaoClimatica(recomendacaoClimatica);
+                    plantaRepository.save(plantaSalva); // Salva novamente com a recomendação
+                } else {
+                    System.out.println("--- DEBUG CONTROLLER: Lat/Lon is NULL ---");
+                }
+            } catch (Exception e) {
+                System.err.println("Erro ao gerar recomendação climática inicial: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            return ResponseEntity.ok(plantaSalva);
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-
-        return ResponseEntity.ok(plantaRepository.save(planta));
     }
 
     // --- 2. MÉTODOS CRUD PADRÃO ---
@@ -291,6 +318,35 @@ public class PlantaController {
         Planta planta = plantaOpt.get();
         planta.setLatitude(localizacao.getLatitude());
         planta.setLongitude(localizacao.getLongitude());
+
+        // --- INTEGRAÇÃO CLIMA AO ATUALIZAR LOCALIZAÇÃO ---
+        try {
+            if (planta.getLatitude() != null && planta.getLongitude() != null) {
+                System.out.println("--- DEBUG LOCATION UPDATE: Lat=" + planta.getLatitude() + ", Lon="
+                        + planta.getLongitude() + " ---");
+                String dadosClimaticos = weatherService.obterDadosClimaticosDetalhados(planta.getLatitude(),
+                        planta.getLongitude());
+                System.out.println("--- DEBUG LOCATION UPDATE: Dados Climáticos=" + dadosClimaticos + " ---");
+
+                if (planta.getEspecieIdentificada() != null) {
+                    String recomendacaoClimatica = geminiService.gerarRecomendacaoClimatica(
+                            planta.getEspecieIdentificada(),
+                            dadosClimaticos,
+                            planta.getPreferenciaSol(),
+                            planta.getPreferenciaUmidade());
+                    planta.setRecomendacaoClimatica(recomendacaoClimatica);
+
+                    // Opcional: Atualizar recomendação diária se estiver genérica
+                    if (planta.getRecomendacaoDiaria() != null
+                            && planta.getRecomendacaoDiaria().contains("clima não está definido")) {
+                        planta.setRecomendacaoDiaria("Clima atualizado! " + recomendacaoClimatica);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Erro ao atualizar clima na localização: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         return ResponseEntity.ok(plantaRepository.save(planta));
     }

@@ -196,4 +196,15 @@ public class Planta {
     public void setPreferenciaUmidade(String preferenciaUmidade) {
         this.preferenciaUmidade = preferenciaUmidade;
     }
+
+    @Column(columnDefinition = "TEXT")
+    private String recomendacaoClimatica;
+
+    public String getRecomendacaoClimatica() {
+        return recomendacaoClimatica;
+    }
+
+    public void setRecomendacaoClimatica(String recomendacaoClimatica) {
+        this.recomendacaoClimatica = recomendacaoClimatica;
+    }
 }
