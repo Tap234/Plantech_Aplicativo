@@ -178,6 +178,10 @@ public class PlantaController {
             JSONObject analiseGemini = geminiService.analisarPlanta(arquivoPath, planta.getEspecieIdentificada(),
                     climaAtual, historicoRecente);
 
+            System.out.println("--- DEBUG GEMINI RESPONSE ---");
+            System.out.println(analiseGemini.toString());
+            System.out.println("-----------------------------");
+
             PlantaHistorico novoRegistro = new PlantaHistorico();
             novoRegistro.setPlanta(planta);
             novoRegistro.setFotoUrl(filename);
@@ -191,6 +195,25 @@ public class PlantaController {
                 if (analiseGemini.has("dica_clima"))
                     rec += "\n💡 Dica: " + analiseGemini.getString("dica_clima");
                 novoRegistro.setRecomendacaoCurativa(rec);
+            }
+
+            // --- LÓGICA DE CUIDADOS IMEDIATOS (NOVO) ---
+            if (analiseGemini.has("frequencia_rega_dias")) {
+                int freq = analiseGemini.getInt("frequencia_rega_dias");
+                planta.setFrequenciaRegaDias(freq);
+
+                boolean regarAgora = analiseGemini.has("proxima_rega_imediata")
+                        && analiseGemini.getBoolean("proxima_rega_imediata");
+                if (regarAgora) {
+                    planta.setProximaRega(LocalDate.now());
+                    planta.setRecomendacaoDiaria("Atenção! Sua planta precisa de água hoje. "
+                            + (analiseGemini.has("dica_clima") ? analiseGemini.getString("dica_clima") : ""));
+                } else {
+                    planta.setProximaRega(LocalDate.now().plusDays(freq));
+                    if (analiseGemini.has("dica_clima")) {
+                        planta.setRecomendacaoDiaria(analiseGemini.getString("dica_clima"));
+                    }
+                }
             }
 
             historicoRepository.save(novoRegistro);

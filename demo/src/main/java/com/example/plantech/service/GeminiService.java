@@ -8,6 +8,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.file.Files;
@@ -21,7 +22,8 @@ public class GeminiService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    private final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+    // Atualizado para gemini-2.0-flash conforme lista de modelos disponíveis
+    private final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
     // --- MÉTODOS PÚBLICOS (API da Classe) ---
 
@@ -48,7 +50,7 @@ public class GeminiService {
                         "Contexto local: O clima agora é '%s'.\n%s\n" +
                         "Tarefa: Identifique visualmente se há doenças, pragas ou deficiência de nutrientes. " +
                         "Retorne APENAS um JSON com este formato (sem markdown): " +
-                        "{ \"saudavel\": boolean, \"diagnostico\": \"resumo do problema visual\", \"tratamento\": \"passos práticos\", \"dica_clima\": \"dica baseada no clima atual\" }",
+                        "{ \"saudavel\": boolean, \"diagnostico\": \"resumo do problema visual\", \"tratamento\": \"passos práticos\", \"dica_clima\": \"dica baseada no clima atual\", \"frequencia_rega_dias\": numero_inteiro, \"proxima_rega_imediata\": boolean }",
                 especie, clima, contextoHistorico.toString());
 
         return consultarGeminiImagem(caminhoImagem, prompt);
@@ -160,14 +162,28 @@ public class GeminiService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
+        // DEBUG: Verificar se a chave está sendo carregada
+        if (apiKey != null && apiKey.length() > 4) {
+            System.out.println("--- DEBUG API KEY: " + apiKey.substring(0, 4) + "**** ---");
+        } else {
+            System.out.println("--- DEBUG API KEY: NULL ou INVÁLIDA ---");
+        }
+
         HttpEntity<String> request = new HttpEntity<>(requestBody.toString(), headers);
-        String response = restTemplate.postForObject(API_URL + "?key=" + apiKey, request, String.class);
+        try {
+            String response = restTemplate.postForObject(API_URL + "?key=" + apiKey, request, String.class);
+            JSONObject jsonResponse = new JSONObject(response);
 
-        JSONObject jsonResponse = new JSONObject(response);
-
-        // Navega no JSON de resposta do Gemini para pegar o texto
-        return jsonResponse.getJSONArray("candidates")
-                .getJSONObject(0).getJSONObject("content").getJSONArray("parts")
-                .getJSONObject(0).getString("text");
+            // Navega no JSON de resposta do Gemini para pegar o texto
+            return jsonResponse.getJSONArray("candidates")
+                    .getJSONObject(0).getJSONObject("content").getJSONArray("parts")
+                    .getJSONObject(0).getString("text");
+        } catch (HttpClientErrorException e) {
+            System.err.println("--- GEMINI API ERROR ---");
+            System.err.println("Status: " + e.getStatusCode());
+            System.err.println("Body: " + e.getResponseBodyAsString());
+            System.err.println("------------------------");
+            throw e;
+        }
     }
 }
