@@ -123,11 +123,24 @@ export default function PlantaDetail() {
   const fotoField = plant.fotoUrl || plant.foto || plant.imagemUrl || plant.url || null;
   const imageUri = fotoField ? `${uploadsBase}/${fotoField}` : null;
 
+  // Helper para criar data local sem timezone shift
+  const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   // Verifica se é dia de rega (comparando datas)
-  const todayStr = new Date().toDateString();
-  const regaDate = plant.proximaRega ? new Date(plant.proximaRega) : null;
-  const isWateringDay = regaDate ? regaDate.toDateString() === todayStr : false;
-  const isLate = regaDate ? regaDate < new Date() && regaDate.toDateString() !== todayStr : false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const regaDate = plant.proximaRega ? parseLocalDate(plant.proximaRega) : null;
+
+  // Se regaDate for válido, normaliza para meia-noite para comparação justa
+  if (regaDate) regaDate.setHours(0, 0, 0, 0);
+
+  const isWateringDay = regaDate ? regaDate.getTime() === today.getTime() : false;
+  const isLate = regaDate ? regaDate < today : false;
 
   // Verifica se é dia de foto de controle
   const fotoDate = plant.proximaFotoControle ? new Date(plant.proximaFotoControle) : null;
@@ -202,7 +215,7 @@ export default function PlantaDetail() {
             <Text style={styles.actionDesc}>
               {isLate ? 'Você esqueceu de regar ontem!' :
                 isWateringDay ? 'Mantenha sua planta hidratada.' :
-                  plant.proximaRega ? new Date(plant.proximaRega).toLocaleDateString('pt-BR') : '--/--/----'}
+                  plant.proximaRega ? parseLocalDate(plant.proximaRega)?.toLocaleDateString('pt-BR') : '--/--/----'}
             </Text>
             <Text style={styles.frequencyText}>
               Frequência: a cada {plant.frequenciaRegaDias} dias
