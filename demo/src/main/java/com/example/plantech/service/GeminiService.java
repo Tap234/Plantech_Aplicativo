@@ -115,6 +115,54 @@ public class GeminiService {
         return consultarGeminiTexto(prompt);
     }
 
+    /**
+     * Gera recomendação climática com flag de alerta.
+     */
+    public JSONObject obterRecomendacaoClimaticaJson(String especie, String dadosClimaticos, String preferenciaSol,
+            String preferenciaUmidade) {
+        String prompt = String.format(
+                "Atue como um botânico. Planta: '%s'. Clima atual: %s. Prefere: Sol %s, Umidade %s.\n" +
+                        "Analise se o clima atual é PERIGOSO/RUIM ou BOM/ACEITÁVEL.\n" +
+                        "Retorne APENAS JSON: { \"mensagem\": \"Frase curta de instrução (ex: Recolha pois vai chover / Deixe no sol)\", \"alertaCritico\": boolean (true se for perigoso/urgente, false se for rotina) }",
+                especie, dadosClimaticos, preferenciaSol, preferenciaUmidade);
+
+        // Reutiliza a lógica de envio de texto, mas espera JSON
+        String jsonStr = consultarGeminiTexto(prompt);
+        try {
+            String cleanJson = jsonStr.replace("```json", "").replace("```", "").trim();
+            return new JSONObject(cleanJson);
+        } catch (Exception e) {
+            // Fallback
+            return new JSONObject().put("mensagem", "Verifique o clima.").put("alertaCritico", false);
+        }
+    }
+
+    /**
+     * Analisa a evolução da planta com base na nova foto e no histórico.
+     */
+    public JSONObject analisarEvolucaoPlanta(com.example.plantech.entity.Planta planta, List<PlantaHistorico> historico,
+            Path caminhoImagem) {
+        StringBuilder contexto = new StringBuilder();
+        if (historico != null) {
+            for (PlantaHistorico h : historico) {
+                if (h.getDescricao() != null) {
+                    contexto.append("- ").append(h.getDataRegistro().toLocalDate()).append(": ")
+                            .append(h.getDescricao()).append("\n");
+                }
+            }
+        }
+
+        String prompt = String.format(
+                "Atue como um botânico. Analise esta NOVA foto de controle da planta '%s' (%s).\n" +
+                        "Histórico recente de ações:\n%s\n" +
+                        "Tarefa: Compare com o histórico e determine a evolução da saúde.\n" +
+                        "Retorne APENAS JSON neste formato:\n" +
+                        "{ \"estadoSaude\": \"Saudável\" | \"Em Recuperação\" | \"Doente\", \"recomendacaoDiaria\": \"O que fazer hoje?\", \"diasParaProximaFoto\": numero_inteiro }",
+                planta.getNome(), planta.getEspecieIdentificada(), contexto.toString());
+
+        return consultarGeminiImagem(caminhoImagem, prompt);
+    }
+
     // --- MÉTODOS PRIVADOS (Lógica Reaproveitável) ---
 
     /**

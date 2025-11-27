@@ -44,6 +44,9 @@ public class Planta {
     private String preferenciaSol;
     private String preferenciaUmidade;
 
+    private LocalDateTime proximaFotoControle;
+    private String estadoSaude;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @JsonBackReference
@@ -206,5 +209,21 @@ public class Planta {
 
     public void setRecomendacaoClimatica(String recomendacaoClimatica) {
         this.recomendacaoClimatica = recomendacaoClimatica;
+    }
+
+    public LocalDateTime getProximaFotoControle() {
+        return proximaFotoControle;
+    }
+
+    public void setProximaFotoControle(LocalDateTime proximaFotoControle) {
+        this.proximaFotoControle = proximaFotoControle;
+    }
+
+    public String getEstadoSaude() {
+        return estadoSaude;
+    }
+
+    public void setEstadoSaude(String estadoSaude) {
+        this.estadoSaude = estadoSaude;
     }
 }

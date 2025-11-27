@@ -59,21 +59,38 @@ public class PlantaController {
         Planta planta = plantaOpt.get();
 
         String filename = fileStorageService.save(file);
-
         Path arquivoPath = fileStorageService.load(filename);
 
-        String prompt = "Analise esta imagem atual da planta " + planta.getNome() +
-                " (Espécie: " + planta.getEspecieIdentificada() + "). " +
-                "Identifique apenas problemas de saúde (pragas, fungos, seca).";
+        // 1. Recuperar histórico para contexto
+        List<PlantaHistorico> historicoAnterior = historicoRepository.findTop3ByPlantaIdOrderByDataRegistroDesc(id);
 
-        JSONObject analise = geminiService.analisarSaude(arquivoPath, prompt);
+        // 2. Analisar evolução com Gemini
+        JSONObject analise = geminiService.analisarEvolucaoPlanta(planta, historicoAnterior, arquivoPath);
 
+        // 3. Criar registro de histórico
         PlantaHistorico historico = new PlantaHistorico();
         historico.setPlanta(planta);
-        if (analise.has("diagnostico"))
-            historico.setDiagnosticoIA(analise.getString("diagnostico"));
         historico.setFotoUrl(filename);
         historico.setDataRegistro(LocalDateTime.now());
+        historico.setTipoAcao("FOTO_CONTROLE");
+
+        if (analise.has("estadoSaude")) {
+            planta.setEstadoSaude(analise.getString("estadoSaude"));
+            historico.setDescricao("Estado de saúde: " + analise.getString("estadoSaude"));
+        }
+
+        if (analise.has("recomendacaoDiaria")) {
+            planta.setRecomendacaoDiaria(analise.getString("recomendacaoDiaria"));
+            historico.setRecomendacaoCurativa(analise.getString("recomendacaoDiaria"));
+        }
+
+        if (analise.has("diasParaProximaFoto")) {
+            int dias = analise.getInt("diasParaProximaFoto");
+            planta.setProximaFotoControle(LocalDateTime.now().plusDays(dias));
+        } else {
+            // Padrão: 7 dias se não especificado
+            planta.setProximaFotoControle(LocalDateTime.now().plusDays(7));
+        }
 
         planta.setDataUltimaFotoControle(LocalDateTime.now());
         plantaRepository.save(planta);

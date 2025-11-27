@@ -34,15 +34,25 @@ public class ClimaJob {
                     String dadosClimaticos = weatherService.obterDadosClimaticosDetalhados(planta.getLatitude(),
                             planta.getLongitude());
 
-                    String recomendacao = geminiService.gerarRecomendacaoClimatica(
+                    org.json.JSONObject recomendacaoJson = geminiService.obterRecomendacaoClimaticaJson(
                             planta.getEspecieIdentificada(),
                             dadosClimaticos,
                             planta.getPreferenciaSol(),
                             planta.getPreferenciaUmidade());
 
-                    planta.setRecomendacaoClimatica(recomendacao);
+                    String mensagem = recomendacaoJson.optString("mensagem", "Clima verificado.");
+                    boolean alertaCritico = recomendacaoJson.optBoolean("alertaCritico", false);
+
+                    planta.setRecomendacaoClimatica(mensagem);
                     plantaRepository.save(planta);
-                    System.out.println("Atualizado clima para: " + planta.getNome());
+
+                    if (alertaCritico) {
+                        System.out.println(
+                                "⚠️ ALERTA CRÍTICO DE CLIMA PARA: " + planta.getNome() + " -> ENVIAR NOTIFICAÇÃO PUSH");
+                        // TODO: Integrar com serviço de notificação (Firebase/Expo)
+                    } else {
+                        System.out.println("Clima OK para: " + planta.getNome());
+                    }
                 }
             } catch (Exception e) {
                 System.err.println("Erro ao atualizar clima para planta " + planta.getId() + ": " + e.getMessage());
