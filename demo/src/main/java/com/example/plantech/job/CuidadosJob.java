@@ -41,11 +41,20 @@ public class CuidadosJob {
 
                 // 2. Se não precisa de foto, gerar dica do dia baseada no estado de saúde
                 String estado = planta.getEstadoSaude() != null ? planta.getEstadoSaude() : "Saudável";
+                boolean diaDeRega = planta.getProximaRega() != null && planta.getProximaRega().isEqual(LocalDate.now());
+
                 String prompt = String.format(
-                        "A planta '%s' (%s) está com estado de saúde: '%s'. " +
-                                "Gere uma dica curta e motivacional de cuidado para hoje (máximo 1 frase). " +
-                                "Não fale de rega nem de clima, apenas cuidado geral ou curiosidade.",
-                        planta.getNome(), planta.getEspecieIdentificada(), estado);
+                        "Atue como um botânico especialista. Planta: '%s' (%s). Estado: '%s'.\n" +
+                                "Hoje %s dia de rega.\n" +
+                                "Tarefa: Gere uma instrução de cuidado para hoje.\n" +
+                                "Regras:\n" +
+                                "1. NÃO fale sobre clima/tempo (já temos isso em outro lugar).\n" +
+                                "2. Se for dia de rega, ESTIME a quantidade de água em ml para um vaso médio.\n" +
+                                "3. Se a planta estiver doente, dê uma instrução prática de tratamento.\n" +
+                                "4. Se estiver saudável e não for dia de rega, dê uma curiosidade ou dica de poda/limpeza.\n"
+                                +
+                                "5. Seja direto e instrutivo (ex: 'Aplique adubo NPK...', 'Limpe as folhas...').",
+                        planta.getNome(), planta.getEspecieIdentificada(), estado, diaDeRega ? "É" : "NÃO É");
 
                 String dica = geminiService.gerarTextoCurto(prompt);
                 planta.setRecomendacaoDiaria(dica);

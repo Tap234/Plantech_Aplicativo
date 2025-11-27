@@ -30,12 +30,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-        @NonNull HttpServletRequest request, 
-        @NonNull HttpServletResponse response, 
-        @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
-        
-        if (request.getServletPath().contains("/api/auth")) {
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
+
+        // Skip authentication for login and register, BUT NOT for /me
+        if (request.getServletPath().contains("/api/auth") && !request.getServletPath().contains("/me")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -46,15 +46,35 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7);
-            username = jwtService.extractUsername(token);
+            try {
+                username = jwtService.extractUsername(token);
+                System.out.println("JwtAuthFilter: Token found. Username: " + username);
+            } catch (Exception e) {
+                System.out.println("JwtAuthFilter: Error extracting username: " + e.getMessage());
+            }
+        } else {
+            // Only log if header is missing or invalid format to avoid spam on public
+            // endpoints
+            if (authHeader != null) {
+                System.out.println("JwtAuthFilter: Invalid Auth Header: " + authHeader);
+            }
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            if (jwtService.isTokenValid(token, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            try {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                if (jwtService.isTokenValid(token, userDetails)) {
+                    System.out.println("JwtAuthFilter: Token is valid. Authenticating user.");
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails,
+                            null, userDetails.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                } else {
+                    System.out.println("JwtAuthFilter: Token is INVALID for user: " + username);
+                }
+            } catch (Exception e) {
+                System.out.println("JwtAuthFilter: Error loading user or validating token: " + e.getMessage());
+                e.printStackTrace();
             }
         }
         filterChain.doFilter(request, response);

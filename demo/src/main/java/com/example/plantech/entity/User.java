@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import java.util.List;
 import jakarta.persistence.OneToMany;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.CascadeType;
 
 @Entity
@@ -30,6 +31,7 @@ public class User {
     @Column(unique = true)
     private String email;
 
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     @Enumerated(EnumType.STRING)

@@ -47,6 +47,11 @@ public class Planta {
     private LocalDateTime proximaFotoControle;
     private String estadoSaude;
 
+    @Column(columnDefinition = "TEXT")
+    private String recomendacaoClimatica;
+
+    private Boolean alertaClimatico; // Novo campo
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @JsonBackReference
@@ -200,9 +205,6 @@ public class Planta {
         this.preferenciaUmidade = preferenciaUmidade;
     }
 
-    @Column(columnDefinition = "TEXT")
-    private String recomendacaoClimatica;
-
     public String getRecomendacaoClimatica() {
         return recomendacaoClimatica;
     }
@@ -225,5 +227,13 @@ public class Planta {
 
     public void setEstadoSaude(String estadoSaude) {
         this.estadoSaude = estadoSaude;
+    }
+
+    public Boolean getAlertaClimatico() {
+        return alertaClimatico;
+    }
+
+    public void setAlertaClimatico(Boolean alertaClimatico) {
+        this.alertaClimatico = alertaClimatico;
     }
 }

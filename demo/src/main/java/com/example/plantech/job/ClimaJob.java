@@ -44,6 +44,7 @@ public class ClimaJob {
                     boolean alertaCritico = recomendacaoJson.optBoolean("alertaCritico", false);
 
                     planta.setRecomendacaoClimatica(mensagem);
+                    planta.setAlertaClimatico(alertaCritico);
                     plantaRepository.save(planta);
 
                     if (alertaCritico) {

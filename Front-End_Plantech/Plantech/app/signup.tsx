@@ -31,7 +31,7 @@ const SignupScreen = () => {
     try {
       // endpoint de registro (ajuste conforme backend)
       await api.post('/auth/register', {
-        name,
+        nome: name,
         email,
         password,
       });

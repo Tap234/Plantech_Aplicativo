@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, Modal, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, Modal, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image as RNImage } from 'react-native';
 import api from '../../api';
 import * as Location from 'expo-location';
+import { Feather } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -16,6 +17,22 @@ export default function HomeScreen() {
   const [identifying, setIdentifying] = useState(false);
   const [identifyResult, setIdentifyResult] = useState<any>(null);
   const [identifyError, setIdentifyError] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('');
+
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  async function loadUser() {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.data && res.data.nome) {
+        setUserName(res.data.nome.split(' ')[0]);
+      }
+    } catch (error) {
+      // Silently fail if user not loaded or not logged in
+    }
+  }
 
   // Pede permissões e abre a câmera
   const openCamera = async () => {
@@ -30,7 +47,6 @@ export default function HomeScreen() {
       const uri = result.assets[0].uri;
       setImageUri(uri);
       setModalVisible(true);
-      // identificar automaticamente
       identifyImage(uri);
     }
   };
@@ -48,7 +64,6 @@ export default function HomeScreen() {
       const uri = result.assets[0].uri;
       setImageUri(uri);
       setModalVisible(true);
-      // identificar automaticamente
       identifyImage(uri);
     }
   };
@@ -58,40 +73,10 @@ export default function HomeScreen() {
     const localUri = uri || imageUri;
     if (!localUri) return;
 
-    let plant: any = null;
-
     try {
       setIdentifying(true);
+      setIdentifyError(null);
 
-      // 0) Obter localização atual (se permitido)
-      let locationData = null;
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({});
-          locationData = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude
-          };
-        }
-      } catch (e) {
-        console.warn('Erro ao obter localização:', e);
-      }
-
-      // 1) Criar planta temporária para que o backend faça a identificação ao receber a foto
-      const createRes = await api.post('/plantas', { nome: 'Identificando...', descricao: '' });
-      plant = createRes.data;
-
-      // 1.5) Se tiver localização, atualizar a planta
-      if (locationData && plant && plant.id) {
-        try {
-          await api.put(`/plantas/${plant.id}/localizacao`, locationData);
-        } catch (locErr) {
-          console.warn('Falha ao enviar localização:', locErr);
-        }
-      }
-
-      // 2) Enviar foto para /plantas/{id}/foto (o backend já chama PlantNet e atualiza a planta)
       const fd = new FormData();
       const filename = localUri.split('/').pop() || 'photo.jpg';
       const match = filename.match(/\.([0-9a-z]+)$/i);
@@ -99,88 +84,130 @@ export default function HomeScreen() {
       // @ts-ignore
       fd.append('file', { uri: localUri, name: filename, type });
 
-      const uploadRes = await api.post(`/plantas/${plant.id}/foto`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await api.post('/plantas/identificar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const result = res.data;
 
-      // 3) Resposta do upload já traz a planta atualizada com identificação (segundo implementação do backend)
-      let updatedPlant = uploadRes.data;
+      setIdentifyResult({ ...result, uri: localUri });
 
-      // Se o backend identificou a espécie mas o nome ainda está como 'Identificando...', atualiza o nome
-      try {
-        const especie = updatedPlant.especieIdentificada;
-        const nomeAtual = updatedPlant.nome || '';
-        if (especie && (nomeAtual.trim() === '' || nomeAtual.toLowerCase().includes('identificando'))) {
-          const putBody = { nome: especie, descricao: updatedPlant.descricao || '' };
-          const putRes = await api.put(`/plantas/${updatedPlant.id}`, putBody);
-          updatedPlant = putRes.data;
-        }
-      } catch (e) {
-        console.warn('Não foi possível atualizar nome da planta automaticamente', e);
-      }
-
-      setIdentifyResult(updatedPlant);
     } catch (error: any) {
       console.error('Erro ao identificar:', error);
-      // Se criou planta temporária, remove para não poluir favoritos
-      try {
-        // @ts-ignore
-        if (plant && plant.id) await api.delete(`/plantas/${plant.id}`);
-      } catch (e) {
-        // ignora erro na exclusão
-      }
-      // marca erro de identificação (mantém modal aberto)
       setIdentifyError('Não foi possível identificar a imagem');
-
-      // Avisar o usuário e oferecer tirar outra foto — sem fechar o modal
-      Alert.alert(
-        'Não foi possível identificar a imagem',
-        'Deseja tirar outra foto agora?',
-        [
-          { text: 'Fechar', style: 'cancel', onPress: () => { setModalVisible(false); setImageUri(null); setIdentifyResult(null); setIdentifyError(null); setTimeout(() => router.replace('/'), 250); } },
-          { text: 'Tirar outra foto', onPress: () => { /* não fechar modal aqui; apenas abrir a câmera */ setTimeout(() => openCamera(), 200); } },
-        ],
-        { cancelable: true }
-      );
     } finally {
       setIdentifying(false);
     }
   };
 
-  const saveAsPlant = () => {
-    setModalVisible(false);
-    setImageUri(null);
-    setIdentifyResult(null);
-    router.replace('/favoritos');
+  const saveAsPlant = async () => {
+    if (!identifyResult) return;
+
+    try {
+      setIdentifying(true);
+
+      let locationData = { latitude: null, longitude: null };
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          // @ts-ignore
+          locationData.latitude = loc.coords.latitude;
+          // @ts-ignore
+          locationData.longitude = loc.coords.longitude;
+        }
+      } catch (e) {
+        console.warn('Erro ao obter localização:', e);
+      }
+
+      const body = {
+        nome: identifyResult.especieIdentificada || 'Minha Planta',
+        descricao: 'Identificada automaticamente',
+        fotoTemp: identifyResult.fotoTemp,
+        especieIdentificada: identifyResult.especieIdentificada,
+        probabilidadeIdentificacao: identifyResult.probabilidadeIdentificacao,
+        latitude: locationData.latitude,
+        longitude: locationData.longitude
+      };
+
+      await api.post('/plantas/confirmar', body);
+
+      setModalVisible(false);
+      setImageUri(null);
+      setIdentifyResult(null);
+      router.replace('/favoritos');
+
+    } catch (error) {
+      console.error('Erro ao salvar planta:', error);
+      Alert.alert('Erro', 'Não foi possível salvar a planta.');
+    } finally {
+      setIdentifying(false);
+    }
   };
 
   const handleCameraButton = () => {
-    // abre um menu nativo simples perguntando Camera ou Galeria
-    Alert.alert('Inserir imagem', 'Escolha a origem da imagem', [
-      { text: 'Câmera', onPress: openCamera },
-      { text: 'Galeria', onPress: openGallery },
+    Alert.alert('Identificar Planta', 'Escolha uma opção', [
+      { text: 'Tirar Foto', onPress: openCamera },
+      { text: 'Escolher da Galeria', onPress: openGallery },
       { text: 'Cancelar', style: 'cancel' },
     ]);
   };
 
   return (
     <View style={styles.container}>
-      {/* Logo + texto */}
-      <View style={styles.logoContainer}>
-        <RNImage source={require('../../assets/images/PlanTech.png')} style={styles.logo} resizeMode="contain" />
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Olá, {userName || 'Amante de Plantas'}</Text>
+            <Text style={styles.subtitle}>Vamos cuidar do seu jardim?</Text>
+          </View>
+        </View>
 
-      {/* Texto de instrução (parte superior) */}
-      <Text style={styles.instructionText}>Escaneie sua planta</Text>
+        {/* Main Action Card */}
+        <TouchableOpacity style={styles.mainCard} onPress={handleCameraButton} activeOpacity={0.9}>
+          <View style={styles.mainCardContent}>
+            <Text style={styles.mainCardTitle}>Identificar Planta</Text>
+            <Text style={styles.mainCardDesc}>Tire uma foto para descobrir a espécie e cuidados.</Text>
+            <View style={styles.cameraIconContainer}>
+              <Feather name="camera" size={32} color="#fff" />
+            </View>
+          </View>
+          <RNImage source={require('../../assets/images/Scanner.png')} style={styles.mainCardImage} resizeMode="cover" />
+        </TouchableOpacity>
 
-      {/* Scanner com botão de câmera (ocupa a maior parte da tela) */}
-      <View style={styles.scannerContainer}>
-        <RNImage source={require('../../assets/images/Scanner.png')} style={styles.scannerImg} resizeMode="cover" />
-        <TouchableOpacity
-          style={styles.cameraBtn}
-          onPress={handleCameraButton}
-          activeOpacity={0.7}
-          accessibilityLabel="Abrir câmera ou galeria"
-        />
-      </View>
+        {/* Quick Actions */}
+        <Text style={styles.sectionTitle}>Acesso Rápido</Text>
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/favoritos')}>
+            <View style={[styles.iconBox, { backgroundColor: '#E8F5E9' }]}>
+              <Feather name="heart" size={24} color="#2E7D32" />
+            </View>
+            <Text style={styles.actionText}>Favoritos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/explore')}>
+            <View style={[styles.iconBox, { backgroundColor: '#E3F2FD' }]}>
+              <Feather name="compass" size={24} color="#1565C0" />
+            </View>
+            <Text style={styles.actionText}>Explorar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} onPress={() => Alert.alert('Dica', 'Regue suas plantas pela manhã para evitar fungos.')}>
+            <View style={[styles.iconBox, { backgroundColor: '#FFF3E0' }]}>
+              <Feather name="sun" size={24} color="#EF6C00" />
+            </View>
+            <Text style={styles.actionText}>Dicas</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Recent/Tips Section Placeholder */}
+        <View style={styles.tipCard}>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Você sabia?</Text>
+            <Text style={styles.tipText}>Plantas purificam o ar e melhoram o humor. Mantenha seu jardim saudável!</Text>
+          </View>
+          <Feather name="smile" size={40} color="#A5D6A7" style={{ opacity: 0.8 }} />
+        </View>
+
+      </ScrollView>
 
       {/* Modal de preview / identificação */}
       <Modal visible={modalVisible} animationType="slide" onRequestClose={() => setModalVisible(false)}>
@@ -215,29 +242,16 @@ export default function HomeScreen() {
             <View style={modalStyles.actionsRowTwo}>
               <TouchableOpacity
                 onPress={saveAsPlant}
-                style={[modalStyles.primaryBtn, (!identifyResult || (!identifyResult.especieIdentificada && !identifyResult.id)) && modalStyles.disabledBtn]}
-                disabled={!identifyResult || (!identifyResult.especieIdentificada && !identifyResult.id) || identifying}
+                style={[modalStyles.primaryBtn, (!identifyResult || (!identifyResult.especieIdentificada && !identifyResult.fotoTemp)) && modalStyles.disabledBtn]}
+                disabled={!identifyResult || (!identifyResult.especieIdentificada && !identifyResult.fotoTemp) || identifying}
               >
                 <Text style={modalStyles.primaryBtnText}>Adicionar aos favoritos</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={async () => {
-                // se identificação criou planta temporária, excluir quando fechar sem salvar
-                try {
-                  if (identifyResult && identifyResult.id) {
-                    // apagar planta temporária apenas se o nome for 'Identificando...' ou se quiser forçar remoção
-                    if (identifyResult.nome === 'Identificando...' || !identifyResult.nome) {
-                      await api.delete(`/plantas/${identifyResult.id}`);
-                    }
-                  }
-                } catch (e) {
-                  // ignora falha na exclusão
-                }
+              <TouchableOpacity onPress={() => {
                 setModalVisible(false);
                 setImageUri(null);
                 setIdentifyResult(null);
-                // volta para a tela home após fechar
-                setTimeout(() => router.replace('/'), 250);
               }} style={modalStyles.closeBtn}>
                 <Text style={modalStyles.closeBtnText}>Fechar</Text>
               </TouchableOpacity>
@@ -249,10 +263,10 @@ export default function HomeScreen() {
       {/* Navbar */}
       <View style={[
         styles.navbar,
-        { paddingBottom: Math.max(insets.bottom, 12), height: 80 + Math.max(insets.bottom, 12) },
+        { paddingBottom: Math.max(insets.bottom, 12), height: 65 + Math.max(insets.bottom, 12) },
       ]}>
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/')}>
-          <RNImage source={require('../../assets/images/Icone_Home.png')} style={styles.navIcon} resizeMode="contain" />
+          <RNImage source={require('../../assets/images/Icone_Home.png')} style={[styles.navIcon, { tintColor: '#174C3C' }]} resizeMode="contain" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/favoritos')}>
           <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={styles.navIcon} resizeMode="contain" />
@@ -269,74 +283,166 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFAF6',
+  },
+  scrollContent: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 32,
+    marginBottom: 24,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 6,
-  },
-  logoText: {
-    fontSize: 44,
+  greeting: {
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#174C3C',
-    letterSpacing: -2,
-    marginBottom: 8,
-    fontFamily: Platform.OS === 'ios' ? 'Arial Rounded MT Bold' : 'sans-serif',
   },
-  welcome: {
-    fontSize: 28,
-    color: '#174C3C',
-    fontWeight: '500',
-    marginBottom: 18,
-    textAlign: 'center',
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 4,
   },
-  scannerContainer: {
-    flex: 1,
-    width: '100%',
-    paddingHorizontal: 20,
-    maxWidth: 900,
+  profileBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 110,
-    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  scannerImg: {
+  profileIcon: {
+    width: 24,
+    height: 24,
+    opacity: 0.8,
+  },
+  mainCard: {
     width: '100%',
-    height: '100%',
-    borderRadius: 28,
+    height: 200,
+    borderRadius: 24,
+    backgroundColor: '#174C3C',
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 32,
+    shadowColor: '#174C3C',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  instructionText: {
-    marginTop: 8,
-    alignSelf: 'center',
-    fontSize: 22,
-    color: '#174C3C',
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingHorizontal: 12,
-  },
-  cameraBtn: {
+  mainCardImage: {
     position: 'absolute',
-    left: '50%',
-    bottom: '12%',
-    transform: [{ translateX: -32 }],
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    right: -20,
+    bottom: -20,
+    width: 180,
+    height: 180,
+    opacity: 0.4,
+    transform: [{ rotate: '-15deg' }],
+  },
+  mainCardContent: {
+    padding: 24,
+    height: '100%',
+    justifyContent: 'center',
     zIndex: 2,
+  },
+  mainCardTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+    maxWidth: '70%',
+  },
+  mainCardDesc: {
+    fontSize: 14,
+    color: '#E0F2F1',
+    maxWidth: '65%',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  cameraIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#174C3C',
+    marginBottom: 16,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  actionCard: {
+    width: '30%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  tipCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tipContent: {
+    flex: 1,
+    marginRight: 16,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#174C3C',
+    marginBottom: 4,
+  },
+  tipText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
   },
   navbar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 80,
     backgroundColor: '#fff',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
@@ -357,28 +463,28 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   navIcon: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
+    opacity: 0.8,
   },
 });
 
 const modalStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6FFF6', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  card: { width: '94%', backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 6 },
-  previewImage: { width: '100%', height: 300, borderRadius: 12, marginBottom: 12 },
-  previewPlaceholder: { width: '100%', height: 300, borderRadius: 12, backgroundColor: '#EAEAEA', marginBottom: 12 },
-  heading: { fontSize: 20, fontWeight: '700', color: '#0F4F3C', alignSelf: 'flex-start', marginBottom: 8 },
-  resultRow: { width: '100%', marginBottom: 12 },
-  speciesText: { fontSize: 22, fontWeight: '700', color: '#0F4F3C' },
-  confidenceText: { fontSize: 14, color: '#174C3C', marginTop: 6 },
-  descText: { marginTop: 8, color: '#2F6B55' },
+  container: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  card: { width: '94%', backgroundColor: '#fff', borderRadius: 24, padding: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
+  previewImage: { width: '100%', height: 300, borderRadius: 16, marginBottom: 16 },
+  previewPlaceholder: { width: '100%', height: 300, borderRadius: 16, backgroundColor: '#EAEAEA', marginBottom: 16 },
+  heading: { fontSize: 22, fontWeight: '700', color: '#0F4F3C', alignSelf: 'flex-start', marginBottom: 12 },
+  resultRow: { width: '100%', marginBottom: 16 },
+  speciesText: { fontSize: 24, fontWeight: '700', color: '#0F4F3C' },
+  confidenceText: { fontSize: 16, color: '#174C3C', marginTop: 6, fontWeight: '500' },
+  descText: { marginTop: 8, color: '#555', lineHeight: 22 },
   infoText: { fontSize: 16, color: '#666' },
   errorText: { fontSize: 16, color: '#D9534F', fontWeight: '600' },
-  actionsRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 },
-  actionsRowTwo: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 12 },
-  primaryBtn: { flex: 1, marginRight: 8, paddingVertical: 14, backgroundColor: '#FF7A3D', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  actionsRowTwo: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 },
+  primaryBtn: { flex: 1, marginRight: 8, paddingVertical: 16, backgroundColor: '#174C3C', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  closeBtn: { flex: 1, marginLeft: 8, paddingVertical: 14, backgroundColor: '#E6E6E6', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  closeBtnText: { color: '#174C3C', fontWeight: '700', fontSize: 16 },
-  disabledBtn: { backgroundColor: '#F2B99A', opacity: 0.9 },
+  closeBtn: { flex: 1, marginLeft: 8, paddingVertical: 16, backgroundColor: '#F5F5F5', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { color: '#333', fontWeight: '700', fontSize: 16 },
+  disabledBtn: { backgroundColor: '#A5D6A7', opacity: 0.8 },
 });

@@ -8,12 +8,14 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 
 type PlantaItem = {
   id: number | string;
@@ -46,7 +48,13 @@ export default function FavoritosScreen() {
       setPlantas(res.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar plantas:', error);
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        Alert.alert('Sessão Expirada', 'Por favor, faça login novamente.');
+        if (Platform.OS === 'web') {
+          localStorage.removeItem('userToken');
+        } else {
+          await SecureStore.deleteItemAsync('userToken');
+        }
         router.replace('/login');
       }
     } finally {
@@ -129,14 +137,14 @@ export default function FavoritosScreen() {
       <View
         style={[
           styles.navbar,
-          { paddingBottom: Math.max(insets.bottom, 12), height: 80 + Math.max(insets.bottom, 12) },
+          { paddingBottom: Math.max(insets.bottom, 12), height: 65 + Math.max(insets.bottom, 12) },
         ]}
       >
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/')}>
           <RNImage source={require('../../assets/images/Icone_Home.png')} style={styles.navIcon} resizeMode="contain" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/favoritos')}>
-          <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={styles.navIcon} resizeMode="contain" />
+          <RNImage source={require('../../assets/images/Icone_Favoritos.png')} style={[styles.navIcon, { tintColor: '#174C3C' }]} resizeMode="contain" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.navBtn} onPress={() => router.replace('/usuario')}>
           <RNImage source={require('../../assets/images/Icone_Usuario.png')} style={styles.navIcon} resizeMode="contain" />
@@ -149,15 +157,16 @@ export default function FavoritosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#DFF0DF',
+    backgroundColor: '#FCFAF6',
     paddingTop: 32,
     alignItems: 'center',
   },
   title: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '700',
-    color: '#0F4F3C',
-    marginBottom: 18,
+    color: '#174C3C',
+    marginBottom: 24,
+    marginTop: 16,
   },
   list: {
     width: '92%',
@@ -169,13 +178,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 20,
     marginBottom: 16,
-    padding: 14,
+    padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 4,
   },
   cardContent: {
@@ -186,20 +195,20 @@ const styles = StyleSheet.create({
   thumb: {
     width: 64,
     height: 64,
-    borderRadius: 12,
-    backgroundColor: '#E8F4EA',
+    borderRadius: 16,
+    backgroundColor: '#E0F2F1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginRight: 16,
   },
   thumbText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#174C3C',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#00695C',
   },
   cardTitle: {
-    fontSize: 20,
-    color: '#0F4F3C',
+    fontSize: 18,
+    color: '#174C3C',
     fontWeight: '600',
     flex: 1,
     flexWrap: 'wrap',
@@ -209,13 +218,14 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFEBEE',
+    borderRadius: 12,
   },
   navbar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 80,
     backgroundColor: '#fff',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
@@ -236,7 +246,8 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   navIcon: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
+    opacity: 0.8,
   },
 });

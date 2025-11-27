@@ -155,58 +155,82 @@ public class PlantaController {
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/{id}/foto")
-    public ResponseEntity<?> uploadFotoPlanta(@PathVariable Long id, @RequestParam("file") MultipartFile file,
-            Authentication authentication) {
-        Optional<Planta> plantaOpt = plantaRepository.findById(id);
-        if (plantaOpt.isEmpty())
-            return ResponseEntity.notFound().build();
+    // --- NOVOS ENDPOINTS PARA FLUXO OTIMIZADO ---
 
-        Planta planta = plantaOpt.get();
-        String filename = fileStorageService.save(file);
-        planta.setFotoUrl(filename);
-
+    @PostMapping("/identificar")
+    public ResponseEntity<?> identificarPlanta(@RequestParam("file") MultipartFile file) {
         try {
+            // 1. Salvar arquivo temporariamente
+            String filename = fileStorageService.save(file);
             Path arquivoPath = fileStorageService.load(filename);
 
-            if (planta.getEspecieIdentificada() == null || planta.getEspecieIdentificada().isEmpty()) {
-                PlantNetResponse respostaIA = plantNetService.identificarPlanta(arquivoPath);
+            // 2. Chamar PlantNet (apenas identificação)
+            PlantNetResponse respostaIA = plantNetService.identificarPlanta(arquivoPath);
 
-                // VERIFICAÇÃO DE SUCESSO DA IDENTIFICAÇÃO
-                if (respostaIA == null || respostaIA.getResults() == null || respostaIA.getResults().isEmpty()) {
-                    plantaRepository.delete(planta);
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body(Map.of("error",
-                                    "Não foi possível identificar nenhuma planta na imagem. Tente novamente."));
-                }
-
-                planta.setEspecieIdentificada(
-                        respostaIA.getResults().get(0).getSpecies().getScientificNameWithoutAuthor());
-                planta.setProbabilidadeIdentificacao(respostaIA.getResults().get(0).getScore());
+            if (respostaIA == null || respostaIA.getResults() == null || respostaIA.getResults().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Não foi possível identificar nenhuma planta na imagem."));
             }
 
+            // 3. Retornar resultado + nome do arquivo temporário
+            String especie = respostaIA.getResults().get(0).getSpecies().getScientificNameWithoutAuthor();
+            Double score = respostaIA.getResults().get(0).getScore();
+
+            return ResponseEntity.ok(Map.of(
+                    "especieIdentificada", especie,
+                    "probabilidadeIdentificacao", score,
+                    "fotoTemp", filename,
+                    "results", respostaIA.getResults()));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erro ao processar imagem."));
+        }
+    }
+
+    @PostMapping("/confirmar")
+    public ResponseEntity<?> confirmarPlanta(@RequestBody com.example.plantech.dto.PlantaConfirmacaoDTO dto,
+            Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User currentUser = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+
+            // 1. Criar Planta
+            Planta planta = new Planta();
+            planta.setNome(dto.getNome());
+            planta.setDescricao(dto.getDescricao());
+            planta.setUser(currentUser);
+            planta.setFotoUrl(dto.getFotoTemp()); // Usa a foto já enviada anteriormente
+            planta.setEspecieIdentificada(dto.getEspecieIdentificada());
+            planta.setProbabilidadeIdentificacao(dto.getProbabilidadeIdentificacao());
+            planta.setLatitude(dto.getLatitude());
+            planta.setLongitude(dto.getLongitude());
+            planta.setDataUltimaFotoControle(LocalDateTime.now());
+
+            // 2. Análise Completa (Clima + Gemini) - SÓ AGORA
             String climaAtual = "Localização não definida";
             if (planta.getLatitude() != null && planta.getLongitude() != null) {
                 climaAtual = weatherService.obterClimaAtual(planta.getLatitude(), planta.getLongitude());
             }
 
-            List<PlantaHistorico> historicoRecente = historicoRepository
-                    .findTop3ByPlantaIdOrderByDataRegistroDesc(planta.getId());
+            Path arquivoPath = fileStorageService.load(dto.getFotoTemp());
+
+            // Histórico vazio pois é nova
             JSONObject analiseGemini = geminiService.analisarPlanta(arquivoPath, planta.getEspecieIdentificada(),
-                    climaAtual, historicoRecente);
+                    climaAtual, List.of());
 
-            System.out.println("--- DEBUG GEMINI RESPONSE ---");
-            System.out.println(analiseGemini.toString());
-            System.out.println("-----------------------------");
-
+            // 3. Processar Resposta Gemini
             PlantaHistorico novoRegistro = new PlantaHistorico();
             novoRegistro.setPlanta(planta);
-            novoRegistro.setFotoUrl(filename);
+            novoRegistro.setFotoUrl(dto.getFotoTemp());
             novoRegistro.setDataRegistro(LocalDateTime.now());
             novoRegistro.setCondicaoTempo(climaAtual);
+            novoRegistro.setTipoAcao("CADASTRO_INICIAL");
 
             if (analiseGemini.has("diagnostico"))
                 novoRegistro.setDiagnosticoIA(analiseGemini.getString("diagnostico"));
+
             if (analiseGemini.has("tratamento")) {
                 String rec = analiseGemini.getString("tratamento");
                 if (analiseGemini.has("dica_clima"))
@@ -214,59 +238,71 @@ public class PlantaController {
                 novoRegistro.setRecomendacaoCurativa(rec);
             }
 
-            // --- LÓGICA DE CUIDADOS IMEDIATOS (NOVO) ---
             if (analiseGemini.has("frequencia_rega_dias")) {
                 int freq = analiseGemini.getInt("frequencia_rega_dias");
                 planta.setFrequenciaRegaDias(freq);
 
                 boolean regarAgora = analiseGemini.has("proxima_rega_imediata")
                         && analiseGemini.getBoolean("proxima_rega_imediata");
+
                 if (regarAgora) {
                     planta.setProximaRega(LocalDate.now());
-                    planta.setRecomendacaoDiaria("Atenção! Sua planta precisa de água hoje. "
-                            + (analiseGemini.has("dica_clima") ? analiseGemini.getString("dica_clima") : ""));
+                    planta.setRecomendacaoDiaria("Sua planta precisa de rega hoje! "
+                            + (analiseGemini.has("tratamento") ? analiseGemini.getString("tratamento") : ""));
                 } else {
                     planta.setProximaRega(LocalDate.now().plusDays(freq));
-                    if (analiseGemini.has("dica_clima")) {
-                        planta.setRecomendacaoDiaria(analiseGemini.getString("dica_clima"));
+                    if (analiseGemini.has("tratamento")) {
+                        planta.setRecomendacaoDiaria(analiseGemini.getString("tratamento"));
+                    } else {
+                        planta.setRecomendacaoDiaria("Planta cadastrada com sucesso! Acompanhe as dicas diárias.");
                     }
                 }
             }
 
+            // GARANTIR DATA DA PRÓXIMA FOTO DE CONTROLE
+            if (analiseGemini.has("diasParaProximaFoto")) {
+                int dias = analiseGemini.getInt("diasParaProximaFoto");
+                planta.setProximaFotoControle(LocalDateTime.now().plusDays(dias));
+            } else {
+                planta.setProximaFotoControle(LocalDateTime.now().plusDays(7)); // Padrão
+            }
+
+            // 4. Salvar
+            Planta plantaSalva = plantaRepository.save(planta);
+            novoRegistro.setPlanta(plantaSalva);
             historicoRepository.save(novoRegistro);
 
-            // 5. Salva no Banco (Primeira vez para ter ID e dados básicos)
-            Planta plantaSalva = plantaRepository.save(planta);
-
-            // 6. Integração com Clima (Novo)
+            // 5. Clima Detalhado (Alerta)
             try {
                 if (plantaSalva.getLatitude() != null && plantaSalva.getLongitude() != null) {
-                    System.out.println("--- DEBUG CONTROLLER: Lat=" + plantaSalva.getLatitude() + ", Lon="
-                            + plantaSalva.getLongitude() + " ---");
                     String dadosClimaticos = weatherService.obterDadosClimaticosDetalhados(plantaSalva.getLatitude(),
                             plantaSalva.getLongitude());
-                    System.out.println("--- DEBUG CONTROLLER: Dados Climáticos=" + dadosClimaticos + " ---");
 
-                    String recomendacaoClimatica = geminiService.gerarRecomendacaoClimatica(
+                    org.json.JSONObject recomendacaoJson = geminiService.obterRecomendacaoClimaticaJson(
                             plantaSalva.getEspecieIdentificada(),
                             dadosClimaticos,
                             plantaSalva.getPreferenciaSol(),
                             plantaSalva.getPreferenciaUmidade());
-                    plantaSalva.setRecomendacaoClimatica(recomendacaoClimatica);
-                    plantaRepository.save(plantaSalva); // Salva novamente com a recomendação
-                } else {
-                    System.out.println("--- DEBUG CONTROLLER: Lat/Lon is NULL ---");
+
+                    String mensagem = recomendacaoJson.optString("mensagem", "Clima verificado.");
+                    boolean alertaCritico = recomendacaoJson.optBoolean("alertaCritico", false);
+
+                    // SEMPRE SALVA A MENSAGEM
+                    plantaSalva.setRecomendacaoClimatica(mensagem);
+                    plantaSalva.setAlertaClimatico(alertaCritico);
+
+                    plantaRepository.save(plantaSalva);
                 }
             } catch (Exception e) {
-                System.err.println("Erro ao gerar recomendação climática inicial: " + e.getMessage());
-                e.printStackTrace();
+                System.err.println("Erro clima final: " + e.getMessage());
             }
 
             return ResponseEntity.ok(plantaSalva);
 
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erro ao confirmar cadastro."));
         }
     }
 
@@ -336,7 +372,7 @@ public class PlantaController {
         planta.setLatitude(localizacao.getLatitude());
         planta.setLongitude(localizacao.getLongitude());
 
-        // --- INTEGRAÇÃO CLIMA AO ATUALIZAR LOCALIZAÇÃO ---
+        // --- INTEGRAÇÃO CLIMA AO ATUALIZAR LOCALIZAÇÃO (ATUALIZADO) ---
         try {
             if (planta.getLatitude() != null && planta.getLongitude() != null) {
                 System.out.println("--- DEBUG LOCATION UPDATE: Lat=" + planta.getLatitude() + ", Lon="
@@ -346,17 +382,23 @@ public class PlantaController {
                 System.out.println("--- DEBUG LOCATION UPDATE: Dados Climáticos=" + dadosClimaticos + " ---");
 
                 if (planta.getEspecieIdentificada() != null) {
-                    String recomendacaoClimatica = geminiService.gerarRecomendacaoClimatica(
+                    org.json.JSONObject recomendacaoJson = geminiService.obterRecomendacaoClimaticaJson(
                             planta.getEspecieIdentificada(),
                             dadosClimaticos,
                             planta.getPreferenciaSol(),
                             planta.getPreferenciaUmidade());
-                    planta.setRecomendacaoClimatica(recomendacaoClimatica);
+
+                    String mensagem = recomendacaoJson.optString("mensagem", "Clima verificado.");
+                    boolean alertaCritico = recomendacaoJson.optBoolean("alertaCritico", false);
+
+                    // SEMPRE SALVA A MENSAGEM
+                    planta.setRecomendacaoClimatica(mensagem);
+                    planta.setAlertaClimatico(alertaCritico);
 
                     // Opcional: Atualizar recomendação diária se estiver genérica
                     if (planta.getRecomendacaoDiaria() != null
                             && planta.getRecomendacaoDiaria().contains("clima não está definido")) {
-                        planta.setRecomendacaoDiaria("Clima atualizado! " + recomendacaoClimatica);
+                        planta.setRecomendacaoDiaria("Clima atualizado! " + mensagem);
                     }
                 }
             }
